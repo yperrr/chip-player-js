@@ -13,6 +13,7 @@ const MAX_VOICES = 64;
 const REPLACE_STATE_ON_SEEK = false;
 const FORMATS = [
   'ay',
+  'imf',
   'gbs',
   'it',
   'mdx',
@@ -30,6 +31,7 @@ const FORMATS = [
   'v2m',
   'vgm',
   'vgz',
+  'wlf',
   'xm',
 ];
 const SOUNDFONT_MOUNTPOINT = '/soundfonts';
