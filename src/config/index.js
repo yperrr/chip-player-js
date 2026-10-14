@@ -13,6 +13,8 @@ const MAX_VOICES = 64;
 const REPLACE_STATE_ON_SEEK = false;
 const FORMATS = [
   'ay',
+  'hes',
+  'kss',
   'gbs',
   'it',
   'mdx',
