@@ -12,6 +12,12 @@ const TIMESLICED_SEEK_MS_MAP = {
   '.spc': 10000,
 };
 const fileExtensions = [
+  // libgme decodes more than this list used to declare. Verified by
+  // playing real files: 'hes' (PC Engine) and 'kss' (MSX) work.
+  // Note 'sgc' and 'sap' were tried too and are rejected by the
+  // library, so they are deliberately absent.
+  'hes',
+  'kss',
   'nsf',
   'nsfe',
   'spc',
