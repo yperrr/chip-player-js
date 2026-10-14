@@ -12,6 +12,16 @@ const MAX_SAMPLE_RATE = 48000; // Higher rates are problematic for some players.
 const MAX_VOICES = 64;
 const REPLACE_STATE_ON_SEEK = false;
 const FORMATS = [
+  // Decodes par le navigateur, via NativeAudioPlayer.
+  'aac',
+  'flac',
+  'm4a',
+  'mp3',
+  'oga',
+  'ogg',
+  'opus',
+  'wav',
+  'webm',
   'ay',
   'hes',
   'imf',
