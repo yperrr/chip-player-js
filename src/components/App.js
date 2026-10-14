@@ -39,6 +39,7 @@ import N64Player from '../players/N64Player';
 import MDXPlayer from '../players/MDXPlayer';
 import VGMPlayer from '../players/VGMPlayer';
 import SIDPlayer from '../players/SIDPlayer';
+import NativeAudioPlayer from '../players/NativeAudioPlayer';
 
 import AppFooter from './AppFooter';
 import AppHeader from './AppHeader';
@@ -175,6 +176,12 @@ class App extends React.Component {
       VGMPlayer,
       SIDPlayer,
     ].map(P => new P(this.chipCore, audioCtx.sampleRate, bufferSize, debug));
+
+    // Le lecteur natif n'a pas de coeur wasm : il confie le decodage au
+    // navigateur et se branche directement sur le graphe, d'ou une
+    // construction a part. Place en dernier : ses extensions ne recoupent
+    // celles d'aucun moteur emule, mais autant etre explicite.
+    players.push(new NativeAudioPlayer(audioCtx, this.gainNode, bufferSize, debug));
     const initialSilence = this.props.userContext?.settings?.silenceDuration ?? -1;
     players.forEach(p => {
       p.audioNode = this.playerNode;
