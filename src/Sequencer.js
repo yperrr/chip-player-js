@@ -252,6 +252,20 @@ export default class Sequencer extends EventEmitter {
     this.currSongBuffer = buffer;
     let uint8Array;
     uint8Array = new Uint8Array(buffer);
+
+    // Now that the bytes are here, let a better-suited player take over. Some
+    // extensions are claimed by more than one engine - 'mus' by MIDIPlayer
+    // (DOOM) and SIDPlayer (Compute!'s Sidplayer, C64) - and only the content
+    // can tell those apart.
+    const ext = filepath.slice(filepath.lastIndexOf('.') + 1).toLowerCase();
+    const better = this.players.find(p => p.canPlay(ext, uint8Array));
+    if (better && better !== player) {
+      player.suspend();
+      player = better;
+      this.player = player;
+      player.setLooping(this.repeat === REPEAT_ONE);
+    }
+
     const persistedSettings = this.getSettings();
     try {
       await player.loadData(uint8Array, filepath, persistedSettings, subtune);

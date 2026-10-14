@@ -14,6 +14,7 @@ const REPLACE_STATE_ON_SEEK = false;
 const FORMATS = [
   'ay',
   'hes',
+  'imf',
   'kss',
   'gbs',
   'it',
@@ -32,6 +33,7 @@ const FORMATS = [
   'v2m',
   'vgm',
   'vgz',
+  'wlf',
   'xm',
 ];
 const SOUNDFONT_MOUNTPOINT = '/soundfonts';

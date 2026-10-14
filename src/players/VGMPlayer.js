@@ -3,8 +3,12 @@ import { SOUNDFONT_MOUNTPOINT, SOUNDFONT_URL_PATH } from '../config';
 import Player from "./Player.js";
 import autoBind from 'auto-bind';
 import { allOrNone, ensureEmscFileWithUrl } from '../util';
+import { imfToVgm } from '../converters/imfToVgm';
 
 const fileExtensions = [
+  // id Software OPL2 register logs, re-wrapped as VGM on load.
+  'imf',
+  'wlf',
   'vgm',
   'vgz',
   'gym',
@@ -47,6 +51,10 @@ export default class VGMPlayer extends Player {
   }
 
   async loadData(data, filepath, persistedSettings) {
+    // IMF has no magic number, so the extension decides - safe here, since no
+    // other engine claims it.
+    if (/\.(imf|wlf)$/i.test(filepath)) data = imfToVgm(data);
+
     const dataPtr = this.copyToHeap(data);
     const err = this.core._lvgm_load_data(this.vgmCtx, dataPtr, data.byteLength);
     this.core._free(dataPtr);
