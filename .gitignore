@@ -25,3 +25,11 @@ libxmp/lite/Makefile.in
 *.backup/
 _ignore/
 public/sitemap*.xml
+
+# --- Fork chiplayer : coeur wasm vendorise ---
+# L'amont ignore ces deux fichiers car il les regenere avec emscripten. Ici on
+# les versionne : ils proviennent du build publie par chiptune.app (voir
+# src/chip-core.provenance.json) et c'est ce qui rend le fork constructible
+# sans chaine C/C++. Colle et wasm doivent TOUJOURS venir du meme manifeste.
+!/src/chip-core.js
+!/src/chip-core.wasm
