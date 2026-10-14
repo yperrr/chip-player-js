@@ -8,6 +8,19 @@ if (process.env.NODE_ENV === 'development') {
   SOUNDFONT_URL_PATH = 'http://localhost:8080/soundfonts';
 }
 
+// Self-hosting: these three endpoints are baked into the bundle at build time
+// and default to this project's own deployment. Reading them from the
+// environment lets a fork point elsewhere without editing source - and without
+// rewriting string literals in the minified bundle afterwards, which is what
+// self-hosters were reduced to.
+//
+// This module is CommonJS on purpose (the Node server imports it too), so the
+// same expressions work both ways: webpack substitutes REACT_APP_* at build
+// time, Node reads them at run time.
+if (process.env.REACT_APP_API_BASE) API_BASE = process.env.REACT_APP_API_BASE;
+if (process.env.REACT_APP_CATALOG_PREFIX) CATALOG_PREFIX = process.env.REACT_APP_CATALOG_PREFIX;
+if (process.env.REACT_APP_SOUNDFONT_URL_PATH) SOUNDFONT_URL_PATH = process.env.REACT_APP_SOUNDFONT_URL_PATH;
+
 const MAX_SAMPLE_RATE = 48000; // Higher rates are problematic for some players.
 const MAX_VOICES = 64;
 const REPLACE_STATE_ON_SEEK = false;
