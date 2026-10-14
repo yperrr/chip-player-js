@@ -107,7 +107,7 @@
     "webpack-manifest-plugin": "^5.0.1",
     "workbox-webpack-plugin": "^6.6.0"
   },
-  "homepage": "https://chiptune.app",
+  "homepage": "/",
   "scripts": {
     "dev": "concurrently -n \"client,server\" \"node scripts/start.js --side-by-side\" \"npm run server\"",
     "start": "node scripts/start.js",
