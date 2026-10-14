@@ -77,7 +77,16 @@ export default class Player extends EventEmitter {
     this.paused = false;
   }
 
-  canPlay(fileExtension) {
+  /**
+   * Can this player handle the file?
+   *
+   * `data` is optional and absent on the first pass, when the Sequencer picks
+   * a player from the extension alone, before fetching anything. Players whose
+   * extension is shared with another engine may override this and decide on
+   * the content once the bytes are available; the Sequencer re-arbitrates in
+   * playSongBuffer().
+   */
+  canPlay(fileExtension, data) {
     return this.fileExtensions.indexOf(fileExtension.toLowerCase()) !== -1;
   }
 

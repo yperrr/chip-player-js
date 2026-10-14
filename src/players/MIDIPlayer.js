@@ -9,6 +9,7 @@ import Player from './Player';
 import { SOUNDFONTS, SOUNDFONT_MOUNTPOINT, SOUNDFONT_URL_PATH } from '../config';
 import { GM_DRUM_KITS, GM_INSTRUMENTS } from '../gm-patch-map';
 import {
+import { isMus, musToMidi } from '../converters/musToMidi';
   ensureEmscFileWithUrl,
   getMetadataUrlForFilepath,
   getUrlFromFilepath,
@@ -30,6 +31,9 @@ const fileExtensions = [
   'mid',
   'midi',
   'smf',
+  // DOOM MUS, converted on load. See canPlay(): the extension is shared
+  // with SIDPlayer, so the content arbitrates.
+  'mus',
 ];
 
 // These correspond to synthIds in tinyplayer.c:
@@ -315,7 +319,20 @@ export default class MIDIPlayer extends Player {
     }
   }
 
+  canPlay(fileExtension, data) {
+    const ext = fileExtension.toLowerCase();
+    if (ext !== 'mus') return super.canPlay(ext);
+    // 'mus' is also SIDPlayer's. With bytes in hand only a DOOM MUS belongs
+    // here; without them (first pass, before the fetch) accept, and let the
+    // Sequencer re-arbitrate once it has the content.
+    return !data || isMus(data);
+  }
+
   async loadData(data, filepath, persistedSettings) {
+    // DOOM MUS is compacted MIDI; restore the standard shape before anything
+    // else touches the bytes.
+    if (isMus(data)) data = musToMidi(data);
+
     if (this.midiFilePlayer) {
       this.midiFilePlayer.stop();
       this.midiFilePlayer.position = 0;
