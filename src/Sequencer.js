@@ -209,7 +209,11 @@ export default class Sequencer extends EventEmitter {
     // Find a player that can play this filetype
     const ext = filepath.slice(filepath.lastIndexOf('.') + 1).toLowerCase();
     let player = this.players.find(p => p.canPlay(ext));
-    if (player === null) {
+    // Array.find() renvoie undefined, jamais null : la garde ci-dessous ne se
+    // declenchait donc jamais. Une extension inconnue ne produisait pas ce
+    // message mais une exception plus loin, a this.player.setLooping(), qui
+    // laissait le sequenceur hors d'usage pour le reste de la session.
+    if (!player) {
       this.emit('playerError', `The file format ".${ext}" was not recognized.`);
       return;
     }
