@@ -9,12 +9,12 @@ import Player from './Player';
 import { SOUNDFONTS, SOUNDFONT_MOUNTPOINT, SOUNDFONT_URL_PATH } from '../config';
 import { GM_DRUM_KITS, GM_INSTRUMENTS } from '../gm-patch-map';
 import {
-import { isMus, musToMidi } from '../converters/musToMidi';
   ensureEmscFileWithUrl,
   getMetadataUrlForFilepath,
   getUrlFromFilepath,
   remap01
 } from '../util';
+import { isMus, musToMidi } from '../converters/musToMidi';
 
 let core = null;
 
