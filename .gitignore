@@ -33,3 +33,8 @@ public/sitemap*.xml
 # sans chaine C/C++. Colle et wasm doivent TOUJOURS venir du meme manifeste.
 !/src/chip-core.js
 !/src/chip-core.wasm
+
+# Passerelle de configuration Firebase : elle ne contient AUCUNE valeur, la
+# vraie configuration arrive a l'execution (window.__chipFirebaseConfig) ou par
+# REACT_APP_FIREBASE_CONFIG. Sans ce fichier, le build echoue.
+!/src/config/firebaseConfig.js
