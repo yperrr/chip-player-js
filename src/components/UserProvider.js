@@ -56,9 +56,25 @@ const UserProvider = ({ children }) => {
   });
 
   useEffect(() => {
-    // Initialize Firebase
-    const firebaseApp = firebaseInitializeApp(firebaseConfig);
-    const auth = getAuth(firebaseApp);
+    // Initialize Firebase.
+    //
+    // Without a configuration, initializeApp() throws auth/invalid-api-key,
+    // and the throw escapes this effect: React unmounts the tree and the whole
+    // page goes blank - no browser, no player, no clue why. Accounts are
+    // optional, so a missing configuration must only cost the accounts.
+    if (!firebaseConfig || !firebaseConfig.apiKey) {
+      console.warn('No Firebase configuration: signing in and favorites are disabled.');
+      setLoadingUser(false);
+      return;
+    }
+    let auth;
+    try {
+      auth = getAuth(firebaseInitializeApp(firebaseConfig));
+    } catch (e) {
+      console.error('Firebase could not be initialized; continuing without accounts.', e);
+      setLoadingUser(false);
+      return;
+    }
     onAuthStateChanged(auth, async user => {
       setUser(user);
       console.log('Firebase auth state changed, user:', user);
