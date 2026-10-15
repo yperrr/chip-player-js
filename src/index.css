@@ -369,7 +369,8 @@ body,#root {
 
 [data-theme="msdos"] {
     @media screen and (max-width: 600px) {
-        .AppFooter-art, .AppFooter-shuffle, .AppFooter-repeat { display: none; }
+        .AppFooter-art, .AppFooter-shuffle, .AppFooter-repeat,
+        .AppFooter-eject { display: none; }
     }
 }
 
