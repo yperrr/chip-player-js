@@ -36,6 +36,7 @@ import MIDIPlayer from '../players/MIDIPlayer';
 import V2MPlayer from '../players/V2MPlayer';
 import XMPPlayer from '../players/XMPPlayer';
 import OpenMPTPlayer from '../players/OpenMPTPlayer';
+import VGMStreamPlayer from '../players/VGMStreamPlayer';
 import N64Player from '../players/N64Player';
 import MDXPlayer from '../players/MDXPlayer';
 import VGMPlayer from '../players/VGMPlayer';
@@ -206,6 +207,13 @@ class App extends React.Component {
     // construction a part. Place en dernier : ses extensions ne recoupent
     // celles d'aucun moteur emule, mais autant etre explicite.
     players.push(new NativeAudioPlayer(audioCtx, this.vizNode, bufferSize, debug));
+
+    // vgmstream EN DERNIER, deliberement : il reconnait plus de 700 extensions,
+    // dont onze que des moteurs plus specialises revendiquent aussi (spc, vgm,
+    // mus, imf, med...). Le sequenceur retient le premier moteur qui accepte
+    // l'extension : place ici, vgmstream ne recupere que ce que personne
+    // d'autre ne reclame. C'est le role d'un generaliste.
+    players.push(new VGMStreamPlayer(null, audioCtx.sampleRate, bufferSize, debug));
     const initialSilence = this.props.userContext?.settings?.silenceDuration ?? -1;
     players.forEach(p => {
       p.audioNode = this.playerNode;

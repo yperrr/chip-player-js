@@ -1,0 +1,28 @@
+{
+  "bibliotheque": "vgmstream",
+  "version": "r2117",
+  "licence": "ISC",
+  "source": "https://github.com/vgmstream/vgmstream (tag r2117)",
+  "construction": {
+    "recette": "scripts/emscripten/vgmstream/Dockerfile",
+    "image": "emscripten/emsdk:6.0.0",
+    "commande": "emcmake cmake + emmake make libvgmstream, puis edition de liens emcc de la bibliotheque statique",
+    "codecsAbsents": "FFmpeg, libmpg123, libvorbis, CELT, SPEEX et G.719 sont desactives : les construire pour wasm triplerait la recette. ATRAC9, lui, est inclus - c'est une bibliotheque autonome que CMake recupere et compile, et il vaut a lui seul ~1 800 archives joshw (Vita, PS4). Les formats qui dependent des autres (atrac3, xma, wma, fsb vorbis) sont reconnus mais ne se decodent pas.",
+    "note": "Construit a la main puis commite, comme chip-core et libopenmpt. Colle et wasm viennent TOUJOURS de la meme execution."
+  },
+  "colle": {
+    "fichier": "src/vgmstream.js",
+    "octets": 59900,
+    "sha256": "4236a4ad766431288cfb34e5debb66f09dfed427f8c4d0269bc8e5de6fef23d6"
+  },
+  "wasm": {
+    "fichier": "src/vgmstream.wasm",
+    "octets": 1283802,
+    "sha256": "a11d81a59db63b071a34f931b922600edf061173e56f9eb4a608f9c49d2a99d9"
+  },
+  "extensions": {
+    "fichier": "src/vgmstream-extensions.json",
+    "nombre": 703,
+    "note": "Produit par la recette, en appelant libvgmstream_get_extensions() sur ce binaire."
+  }
+}

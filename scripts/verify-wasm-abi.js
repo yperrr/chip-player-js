@@ -31,6 +31,12 @@ const SOURCES = path.join(RACINE, 'src');
 // _free sont appeles des deux cotes, un prefixe ne saurait pas les departager.
 const MOTEURS = [
   {
+    nom: 'vgmstream',
+    colle: 'src/vgmstream.js',
+    fichiers: ['src/players/VGMStreamPlayer.js'],
+    correctif: 'reconstruire avec scripts/emscripten/vgmstream/ en completant EXPORTED_FUNCTIONS',
+  },
+  {
     nom: 'libopenmpt',
     colle: 'src/libopenmpt.js',
     fichiers: ['src/players/OpenMPTPlayer.js'],
