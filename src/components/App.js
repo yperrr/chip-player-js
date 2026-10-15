@@ -413,6 +413,15 @@ class App extends React.Component {
     this.sequencer.nextSong();
   }
 
+  stop() {
+    this.sequencer.stop();
+    // Le lecteur silencieux qui porte les touches multimedia doit suivre,
+    // sans quoi le systeme continue d'annoncer une lecture en cours.
+    if ('mediaSession' in navigator) {
+      this.mediaSessionAudio.pause();
+    }
+  }
+
   prevSubtune() {
     this.sequencer.prevSubtune();
   }
@@ -1052,6 +1061,7 @@ class App extends React.Component {
             sequencer={this.sequencer}
             songId={this.state.songId}
             songPath={this.state.songPath}
+            stop={this.stop}
             subtitle={subtitle}
             tempo={this.state.tempo}
             title={title}
