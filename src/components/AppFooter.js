@@ -32,6 +32,7 @@ function AppFooter(props) {
     shuffle,
     songId,
     songPath,
+    stop,
     subtitle,
     title,
     volume,
@@ -127,8 +128,15 @@ function AppFooter(props) {
                 <span className="inline-icon icon-forward"/>
               </button>
             </>}
-          <button title="Cycle Repeat (repeat off, repeat all songs in the context, or repeat one song)"
+          <button onClick={stop}
+                  title="Eject - stop playback and unload the song"
                   style={{ marginLeft: 'auto' }}
+                  className="AppFooter-eject box-button"
+                  disabled={ejected}>
+            <span className="inline-icon icon-eject"/>
+            Eject
+          </button>
+          <button title="Cycle Repeat (repeat off, repeat all songs in the context, or repeat one song)"
                   className="AppFooter-repeat box-button" onClick={handleCycleRepeat}>
             <span className="inline-icon icon-repeat"/>
             {REPEAT_LABELS[repeat]}

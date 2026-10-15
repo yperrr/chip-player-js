@@ -656,6 +656,21 @@ button.IconButton {
 .icon-download { width: 16px; mask-image: url(images/download.png); }
 .icon-repeat   { width: 16px; mask-image: url(images/repeat.png); }
 .icon-shuffle  { width: 16px; mask-image: url(images/shuffle.png); }
+/* Eject : le jeu d'icones n'en comporte pas (back, chip, copy, download,
+   folder, forward, next, pause, pin, play, prev, repeat, shuffle, trash). On
+   la dessine donc, mais avec LE MEME mecanisme que les autres - un masque
+   teinte par background-color - pour heriter sans rien declarer de la couleur
+   du theme et du grisement de [disabled] .inline-icon.
+   Les proportions ne sont pas choisies a vue : les masques PNG ont ete decodes
+   pixel par pixel. Tous les glyphes de transport tiennent dans une boite de
+   8x8 (colonnes 8 a 15, lignes 6 a 13) et sont traces a 2 px - d'ou le
+   triangle de 8 de large et la barre de 8x2.
+   Le triangle est trace par paliers de 2 px plutot qu'en polygone : son arete
+   tombait exactement sur la frontiere des pixels, si bien que la rangee pleine
+   de 8 n'etait jamais remplie et que la pointe paraissait tronquee (verifie au
+   pixel). Les paliers donnent le meme escalier 2/4/6/8 que l'icone play, quel
+   que soit le rasteriseur. */
+.icon-eject    { width: 24px; mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 19' shape-rendering='crispEdges'%3E%3Cg fill='%23fff'%3E%3Crect x='11' y='6' width='2' height='1'/%3E%3Crect x='10' y='7' width='4' height='1'/%3E%3Crect x='9' y='8' width='6' height='1'/%3E%3Crect x='8' y='9' width='8' height='1'/%3E%3Crect x='8' y='12' width='8' height='2'/%3E%3C/g%3E%3C/svg%3E"); }
 .icon-chip     { width: 24px; mask-image: url(images/chip.png); }
 .icon-pin-up   { width: 24px; mask-image: url(images/pin-up.png); background-color: var(--neutral2); }
 .icon-pin-down { width: 24px; mask-image: url(images/pin-filled.png); background-color: var(--neutral2); }

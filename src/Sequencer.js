@@ -152,6 +152,26 @@ export default class Sequencer extends EventEmitter {
     }
   }
 
+  /**
+   * Stop playback and unload the current song, leaving the player ejected.
+   *
+   * Clearing the context BEFORE stopping the player is what keeps this from
+   * advancing instead of stopping: every player's stop() emits isStopped, and
+   * handlePlayerStateUpdate() calls nextSong() whenever a context remains.
+   * Same order as the end-of-context branch of advanceSong(), for the same
+   * reason.
+   */
+  stop() {
+    if (!this.player) return;
+    this.currIdx = 0;
+    this.context = null;
+    this.currSongPath = null;
+    this.currSongBuffer = null;
+    this.player.stop();
+    this.player = null;
+    this.emit('sequencerStateUpdate', { isEjected: true });
+  }
+
   nextSong() {
     this.advanceSong(1);
   }
