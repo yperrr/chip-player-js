@@ -77,8 +77,20 @@ export default class NativeAudioPlayer extends Player {
   }
 
   // The others render into the shared buffers; this one is already wired into
-  // the graph. Doing nothing here is the whole point - see the header note.
-  processAudio(channels) { /* audio flows through the media element */ }
+  // the graph, so there is no audio to produce here - see the header note.
+  //
+  // It is still called on every audio quantum, though, and the base class uses
+  // exactly that as its clock for the silence inserted between tracks. Doing
+  // nothing at all left onSilenceEnd pending forever: with "Insert Silence"
+  // set to anything but None, playback stopped dead at the end of every
+  // browser-decoded file instead of moving to the next one.
+  //
+  // Only the countdown branch is borrowed. The rest of the base method reads
+  // the rendered buffer to measure trailing silence, and that buffer is always
+  // zeroed here - it would take every track for a silent one.
+  processAudio(channels) {
+    if (this.silenceSamplesRemaining > 0) super.processAudio(channels);
+  }
 
   processAudioInner(channels) { /* never reached */ }
 

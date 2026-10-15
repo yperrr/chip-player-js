@@ -131,7 +131,8 @@
         .BrowseList-colMtime { display: none }
         .AppFooter-art { display: none }
     }
-    @container (max-width: 500px) { button.AppFooter-shuffle, button.AppFooter-repeat { display: none; } }
+    @container (max-width: 500px) { button.AppFooter-shuffle, button.AppFooter-repeat,
+                                   button.AppFooter-eject { display: none; } }
     @media screen and (max-width: 800px) {
         .AppFooter-art { top: 0; width: 170px; height: 170px; }
     }
