@@ -1,0 +1,29 @@
+# Contexte de construction : on ne batit que le lecteur, donc le strict
+# necessaire. Sans ces exclusions, chaque construction enverrait au demon les
+# ~650 Mo de bibliotheques C vendorisees, qui ne servent qu'a recompiler le
+# coeur wasm — ce que ce Dockerfile ne fait pas, puisque le coeur est
+# vendorise (voir src/chip-core.provenance.json).
+
+.git
+.github
+node_modules
+build
+
+# Bibliotheques C/C++ integrees en subtree. Elles ne concernent que
+# scripts/build-chip-core.js, hors perimetre ici.
+game-music-emu
+libvgm
+libxmp
+fluidlite
+libADLMIDI
+psflib
+lazyusf2
+mdxmini
+farbrausch-v2m
+CMakeLists.txt
+
+# Secrets et artefacts locaux
+server/.env
+.env
+.env.local
+*.log

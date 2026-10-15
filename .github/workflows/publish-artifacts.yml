@@ -1,0 +1,77 @@
+# Publie l'image d'artefacts du lecteur sur ghcr.io.
+#
+# L'image ne tourne pas : c'est un porte-fichiers (voir Dockerfile), consomme
+# par la stack GitLab avec `COPY --from=`. Son interet tient a une garantie :
+# le frontend construit et les sources serveur viennent du MEME commit. Les
+# tirer separement de l'amont les desynchronisait, et ce n'est pas theorique —
+# le gabarit de page porte des marqueurs qu'un serveur trop ancien ne remplace
+# pas, auquel cas React ne monte jamais et la page reste blanche.
+#
+# Deux etiquettes sont poussees :
+#   :chiplayer      la derniere construction de la branche d'integration
+#   :<sha court>    la version precise, a epingler cote GitLab
+#
+# Epingler le sha est ce qui rend un deploiement reproductible et un retour en
+# arriere possible. L'etiquette de branche n'est qu'une commodite.
+name: Publier les artefacts
+
+on:
+  push:
+    branches: [chiplayer]
+    # Inutile de reconstruire pour une modification de documentation.
+    paths-ignore:
+      - '**/*.md'
+      - 'PIANO_ROLL_PLAN.md'
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Identifier la version
+        id: version
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Se connecter a ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construire et publier
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: artifacts
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:chiplayer
+            ${{ env.IMAGE }}:${{ steps.version.outputs.sha }}
+          # Cache porte par le registre : les runners GitHub repartent d'un
+          # cache vide a chaque execution, sans quoi `npm ci` serait refait
+          # integralement a chaque fois.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=Artefacts du lecteur chip-player-js (frontend construit + sources serveur, meme commit)
+
+      - name: Resume
+        run: |
+          echo "### Artefacts publies" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ env.IMAGE }}:${{ steps.version.outputs.sha }}\` (a epingler)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ env.IMAGE }}:chiplayer\`" >> "$GITHUB_STEP_SUMMARY"
