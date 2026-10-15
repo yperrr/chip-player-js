@@ -241,6 +241,10 @@ class App extends React.Component {
       this.setState({ loadingLocalFiles: false });
     });
 
+    // Releve avant toute lecture : c'est le titre que le serveur a rendu pour
+    // cette route, celui vers lequel on revient quand plus rien ne joue.
+    this.titreInitial = document.title;
+
     this.sequencer = new Sequencer(players, this.localFilesManager, () => this.props.userContext.settings);
     this.sequencer.on('sequencerStateUpdate', this.handleSequencerStateUpdate);
     this.sequencer.on('playerError', (message) => this.props.toastContext.enqueueToast(message, ToastLevels.ERROR));
@@ -282,7 +286,37 @@ class App extends React.Component {
     this.setState({ loading: false });
   }
 
-  componentDidUpdate(prevProps) {
+  /**
+   * Fait suivre au titre de l'onglet le morceau en cours.
+   *
+   * Le titre est rendu par le serveur, une fois, d'apres la route : la page
+   * d'un dossier garde donc son nom de dossier pendant qu'on enchaine les
+   * morceaux. Et comme le serveur court-circuite desormais sur /browse/*, meme
+   * un ?play= dans l'URL n'y change rien.
+   *
+   * On le met donc a jour ici, ou l'on sait ce qui joue. A l'ejection, on
+   * revient au titre d'origine plutot que de laisser le dernier morceau.
+   */
+  majTitreOnglet() {
+    if (this.titreInitial === undefined) return;
+    const { ejected, currentSongMetadata: meta } = this.state;
+    let titre = this.titreInitial;
+    if (!ejected && meta && meta.title) {
+      titre = meta.title;
+      // Meme forme que celle du serveur pour un lien ?play=, pour qu'un onglet
+      // ouvert depuis un lien et un onglet qui joue se ressemblent.
+      if (meta.artist) titre += ` - ${meta.artist}`;
+      else if (meta.game) titre += ` - ${meta.game}`;
+    }
+    if (document.title !== titre) document.title = titre;
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.currentSongMetadata !== this.state.currentSongMetadata
+      || prevState.ejected !== this.state.ejected) {
+      this.majTitreOnglet();
+    }
+
     const prevSilence = prevProps.userContext?.settings?.silenceDuration;
     const currSilence = this.props.userContext?.settings?.silenceDuration;
     if (prevSilence !== currSilence && this.players) {

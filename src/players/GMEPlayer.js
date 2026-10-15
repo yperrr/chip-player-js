@@ -408,7 +408,30 @@ export default class GMEPlayer extends Player {
 
   doIncrementalSeek(seekMsIncrement) {
     // console.log('Scheduling incremental seek of %s ms...', seekMsIncrement);
+    //
+    // Le `timeout` n'est pas une precaution de style : sans lui, cette
+    // recherche ne se termine jamais sur cette page.
+    //
+    // requestIdleCallback n'est honore que s'il reste du temps en fin de
+    // trame. Or le graphe audio tourne sur le fil principal — un
+    // ScriptProcessor rappele toutes les ~43 ms — et le visualiseur dessine a
+    // chaque trame : il ne reste pas d'inactivite. Mesure sur chip.fkmz.xyz,
+    // un rappel inactif pose a la main n'etait toujours pas execute deux
+    // secondes plus tard.
+    //
+    // La recherche degenerait alors en ceci : seekMs() passe le tempo a 2 pour
+    // avancer vite, et c'est ce rappel-ci, seul, qui le remet a sa valeur. Sans
+    // lui, le morceau continuait a 2x jusqu'a la fin. C'est le symptome
+    // rapporte : « en seekant vers le milieu elle s'est mise a se jouer plus
+    // rapidement ».
+    //
+    // Avec un timeout, la specification garantit l'execution passe ce delai,
+    // qu'il y ait de l'inactivite ou non.
     this.seekRequestId = requestIdleCallback(() => {
+      if (!this.gmeCtx || this.seekTargetMs === null) {
+        this.seekRequestId = null;
+        return;
+      }
       const seekIntermediateMs = Math.min(this.getPositionMs() + seekMsIncrement, this.seekTargetMs);
       core._gme_seek_scaled(this.gmeCtx, seekIntermediateMs);
       if (seekIntermediateMs < this.seekTargetMs) {
@@ -419,7 +442,7 @@ export default class GMEPlayer extends Player {
         this.seekTargetMs = null;
         this.seekRequestId = null;
       }
-    });
+    }, { timeout: 50 });
   }
 
   seekMs(positionMs) {
