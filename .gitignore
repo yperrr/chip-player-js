@@ -34,6 +34,11 @@ public/sitemap*.xml
 !/src/chip-core.js
 !/src/chip-core.wasm
 
+# Moteur libopenmpt, construit a la main par build/emscripten/libopenmpt/
+# et vendorise de la meme facon (voir src/libopenmpt.provenance.json).
+!/src/libopenmpt.js
+!/src/libopenmpt.wasm
+
 # Passerelle de configuration Firebase : elle ne contient AUCUNE valeur, la
 # vraie configuration arrive a l'execution (window.__chipFirebaseConfig) ou par
 # REACT_APP_FIREBASE_CONFIG. Sans ce fichier, le build echoue.

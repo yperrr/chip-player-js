@@ -38,10 +38,11 @@ ENV REACT_APP_API_BASE=$REACT_APP_API_BASE \
     REACT_APP_SOUNDFONT_URL_PATH=$REACT_APP_SOUNDFONT_URL_PATH \
     GENERATE_SOURCEMAP=false
 
-# Le garde-fou passe AVANT webpack : il verifie que le coeur wasm vendorise
-# exporte tout ce que le code appelle. Un symbole manquant ne se verrait pas a
-# la construction, seulement a l'execution, sur un format particulier.
-RUN node scripts/verify-chip-core-abi.js && npm run build-lite
+# Le garde-fou passe AVANT webpack : il verifie que chaque moteur wasm
+# vendorise exporte tout ce que le code appelle. Un symbole manquant ne se
+# verrait pas a la construction, seulement a l'execution, sur un format
+# particulier.
+RUN node scripts/verify-wasm-abi.js && npm run build-lite
 
 # ---- Artefacts ----
 # `scratch` : rien d'executable, que des fichiers a recopier.

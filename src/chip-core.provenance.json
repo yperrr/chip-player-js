@@ -1,14 +1,14 @@
 {
   "source": "https://chiptune.app",
   "manifeste": "https://chiptune.app/asset-manifest.json",
-  "chunkPublie": "https://chiptune.appC:/Program Files/Git/static/js/chip-core.632e.chunk.js",
+  "chunkPublie": "https://chiptune.app/static/js/chip-core.632e.chunk.js",
   "colle": {
-    "url": "https://chiptune.appC:/Program Files/Git/static/js/chip-core.632e.chunk.js.map",
+    "url": "https://chiptune.app/static/js/chip-core.632e.chunk.js.map",
     "octets": 122638,
     "sha256": "c5c3f730b8342b346712348d488bff0fb2c2d92993a100e78aa809e9934cf0cc"
   },
   "wasm": {
-    "url": "https://chiptune.appC:/Program Files/Git/static/js/chip-core.7ebc.wasm",
+    "url": "https://chiptune.app/static/js/chip-core.7ebc.wasm",
     "octets": 1791603,
     "sha256": "b192b884aac5564a78604f9e29811a48603768769dd7a60bc43f0685649a6851"
   }

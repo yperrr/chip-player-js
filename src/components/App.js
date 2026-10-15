@@ -35,6 +35,7 @@ import GMEPlayer from '../players/GMEPlayer';
 import MIDIPlayer from '../players/MIDIPlayer';
 import V2MPlayer from '../players/V2MPlayer';
 import XMPPlayer from '../players/XMPPlayer';
+import OpenMPTPlayer from '../players/OpenMPTPlayer';
 import N64Player from '../players/N64Player';
 import MDXPlayer from '../players/MDXPlayer';
 import VGMPlayer from '../players/VGMPlayer';
@@ -186,6 +187,12 @@ class App extends React.Component {
     const players = [
       MIDIPlayer,
       GMEPlayer,
+      // Avant XMPPlayer : le sequenceur retient le PREMIER moteur qui accepte
+      // l'extension. libopenmpt lit 66 formats de tracker la ou libxmp-lite en
+      // lit 4, et les restitue plus fidelement. XMPPlayer reste en place —
+      // inerte sur ces quatre extensions — comme filet si l'on veut un jour
+      // arbitrer par contenu plutot que par extension.
+      OpenMPTPlayer,
       XMPPlayer,
       V2MPlayer,
       N64Player,
