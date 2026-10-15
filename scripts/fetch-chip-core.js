@@ -18,7 +18,7 @@
 // du wasm sont minifies en lettres et c'est la colle qui les mappe ; melanger
 // deux builds produit une casse silencieuse d'abord, brutale ensuite.
 //
-// Apres rafraichissement, toujours lancer `node scripts/verify-chip-core-abi.js`
+// Apres rafraichissement, toujours lancer `node scripts/verify-wasm-abi.js`
 // puis la matrice de formats : un controle de symboles ne voit pas une derive
 // de comportement.
 const fs = require('fs');
@@ -79,7 +79,7 @@ async function recuperer(url, binaire = false) {
 
   console.log('\ncolle : %d octets', provenance.colle.octets);
   console.log('wasm  : %d octets', provenance.wasm.octets);
-  console.log('\nVerifier maintenant : node scripts/verify-chip-core-abi.js');
+  console.log('\nVerifier maintenant : node scripts/verify-wasm-abi.js');
 })().catch(e => {
   console.error('Rafraichissement impossible :', e.message);
   process.exit(1);

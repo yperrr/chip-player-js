@@ -1,0 +1,27 @@
+{
+  "bibliotheque": "libopenmpt",
+  "version": "0.8.9",
+  "licence": "BSD-3-Clause",
+  "source": "https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-0.8.9+release.makefile.tar.gz",
+  "construction": {
+    "recette": "scripts/emscripten/libopenmpt/Dockerfile",
+    "image": "emscripten/emsdk:6.0.0",
+    "commande": "deux passes : make CONFIG=emscripten EMSCRIPTEN_TARGET=wasm (liste des extensions, sous node), puis la meme avec -s ENVIRONMENT=web (binaire vendorise)",
+    "note": "Le couple est construit a la main puis commite. Rien ne le tire pendant la construction du lecteur : pas de dependance reseau, construction reproductible. Colle et wasm viennent TOUJOURS de la meme execution - les exports du wasm sont minifies et c'est la colle qui les mappe."
+  },
+  "colle": {
+    "fichier": "src/libopenmpt.js",
+    "octets": 129787,
+    "sha256": "6c41f81ad2064795ec5263631e1ceea4763e27f5f265052bee08f9129fdceb5f"
+  },
+  "wasm": {
+    "fichier": "src/libopenmpt.wasm",
+    "octets": 1241469,
+    "sha256": "6dd6684085a3e8a5ddbb048aa14fe46c420f25f063d0e4def4f37bab15604c73"
+  },
+  "extensions": {
+    "fichier": "src/libopenmpt-extensions.json",
+    "nombre": 68,
+    "note": "Produit par la recette, en appelant openmpt_get_supported_extensions() sur ce binaire."
+  }
+}
