@@ -57,6 +57,11 @@ const FORMATS = [
   'vgm',
   'vgz',
   'wlf',
+  // Declares par VGMPlayer mais absents de cette liste : les dossiers qui ne
+  // contenaient que ces formats restaient invisibles au catalogue.
+  'gym',
+  's98',
+  'dro',
   'xm',
 ];
 const SOUNDFONT_MOUNTPOINT = '/soundfonts';
