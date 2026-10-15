@@ -103,9 +103,12 @@ export default class Visualizer extends PureComponent {
   };
 
   getAudioLatencyMs = () => {
-    const { audioCtx, sourceNode } = this.props;
+    const { audioCtx, bufferSize: bufferSizeProp, sourceNode } = this.props;
     if (!audioCtx) return 0;
-    const bufferSize = sourceNode?.bufferSize || 2048;
+    // bufferSize now arrives as a prop: the tap is a GainNode, which has no
+    // bufferSize of its own, and falling back to 2048 would misreport latency
+    // whenever the ScriptProcessor was sized differently.
+    const bufferSize = bufferSizeProp || sourceNode?.bufferSize || 2048;
     const sampleRate = audioCtx.sampleRate || 44100;
     const bufferLatency = bufferSize / sampleRate;
     const outputLatency = (typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : (audioCtx.baseLatency || 0));
