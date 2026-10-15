@@ -102,8 +102,25 @@ class App extends React.Component {
     const gainNode = this.gainNode = audioCtx.createGain();
     gainNode.gain.value = 1;
     gainNode.connect(audioCtx.destination);
+
+    // Visualizer tap, between the players and the master gain.
+    //
+    // The analyser used to hang off playerNode, the ScriptProcessor that the
+    // wasm engines render into. Any player that does NOT render there was
+    // therefore invisible to the spectrum - which is every browser-decoded
+    // file, since those flow from a MediaElementSource straight into the
+    // graph. Everything meets here instead, so the visualizer sees them all.
+    //
+    // Not the master gain itself: the analyser would then read post-volume
+    // audio, and turning the volume down would flatten the spectrum of music
+    // that is still playing.
+    const vizNode = this.vizNode = audioCtx.createGain();
+    vizNode.gain.value = 1;
+    vizNode.connect(gainNode);
+
+    this.bufferSize = bufferSize;
     const playerNode = this.playerNode = audioCtx.createScriptProcessor(bufferSize, 0, 2);
-    playerNode.connect(gainNode);
+    playerNode.connect(vizNode);
 
     unlockAudioContext(audioCtx);
     console.log('Sample rate: %d hz. Base latency: %d. Buffer size: %d.',
@@ -181,7 +198,7 @@ class App extends React.Component {
     // navigateur et se branche directement sur le graphe, d'ou une
     // construction a part. Place en dernier : ses extensions ne recoupent
     // celles d'aucun moteur emule, mais autant etre explicite.
-    players.push(new NativeAudioPlayer(audioCtx, this.gainNode, bufferSize, debug));
+    players.push(new NativeAudioPlayer(audioCtx, this.vizNode, bufferSize, debug));
     const initialSilence = this.props.userContext?.settings?.silenceDuration ?? -1;
     players.forEach(p => {
       p.audioNode = this.playerNode;
@@ -1020,7 +1037,8 @@ class App extends React.Component {
             </div>
             {!isMobile.phone && !this.state.loading && !!this.chipCore &&
               <Visualizer audioCtx={this.audioCtx}
-                          sourceNode={this.playerNode}
+                          sourceNode={this.vizNode}
+                          bufferSize={this.bufferSize}
                           chipCore={this.chipCore}
                           paused={this.state.ejected || this.state.paused}
                           songPath={this.state.songPath}

@@ -61,6 +61,11 @@ export default class NativeAudioPlayer extends Player {
 
     this.audioEl = document.createElement('audio');
     this.audioEl.preload = 'auto';
+    // Speed changes pitch, as it does on every emulated engine here: there
+    // "speed" is the chip clock, so the music transposes. Browsers default to
+    // preserving pitch, which would make this one player behave differently
+    // from all the others for the same slider.
+    this.audioEl.preservesPitch = false;
     this.audioEl.addEventListener('ended', () => this.handleSongEnd());
 
     // Only advertise what this browser will actually decode.
@@ -144,6 +149,19 @@ export default class NativeAudioPlayer extends Player {
 
   isPlaying() {
     return !this.isPaused();
+  }
+
+  // Speed, same slider as the emulated engines. Without these the control
+  // still appeared in the settings panel and simply did nothing.
+  getTempo() {
+    return this.audioEl.playbackRate;
+  }
+
+  setTempo(tempo) {
+    // The slider spans 0.3 to 2.0; browsers accept roughly 0.0625 to 16, so
+    // the whole range is usable.
+    this.audioEl.playbackRate = tempo;
+    this.emit('playerStateUpdate', { ...this.getBasePlayerState(), isStopped: false });
   }
 
   suspend() {

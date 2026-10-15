@@ -48,7 +48,15 @@ const UserProvider = ({ children }) => {
     // Restore settings from localStorage.
     try {
       const settings = window.localStorage.getItem('settings');
-      return settings ? JSON.parse(settings) : DEFAULT_SETTINGS;
+      // Merged over the defaults, not used as-is: settings saved before a key
+      // existed simply lack it, and the key then reads back as undefined for
+      // the rest of the session. That is not harmless — the visualizer's
+      // On/Off radios test `=== true` / `=== false`, so an undefined left
+      // BOTH of them unchecked on every load. Merging gives any key added
+      // later its default for people who already have stored settings.
+      return settings
+        ? { ...DEFAULT_SETTINGS, ...JSON.parse(settings) }
+        : DEFAULT_SETTINGS;
     } catch (e) {
       console.error('Could not load settings from localStorage', e);
       return DEFAULT_SETTINGS;
