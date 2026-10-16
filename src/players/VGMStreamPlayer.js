@@ -52,7 +52,10 @@ export default class VGMStreamPlayer extends Player {
     this.name = 'vgmstream Player';
     this.fileExtensions = fileExtensions;
     this.lib = 0;            // libvgmstream_t*
-    this.buf = 0;
+    this._reste = 0;         // echantillons restants dans le bloc decode
+    this._prec = null;       // derniere trame du bloc precedent, indice -1
+    this._pos = 0;           // position fractionnaire dans ce bloc
+    this._bufPtr = 0;
     this.cheminFs = null;
     this._subtune = 0;
     this._nbSubtunes = 1;
@@ -64,8 +67,8 @@ export default class VGMStreamPlayer extends Player {
     if (this.core) return;
     const mod = await import('../vgmstream');
     this.core = await mod.default();
-    // float stereo entrelace : channels * 4 octets * bufferSize
-    this.buf = this.core._malloc(this.bufferSize * 4 * 8);
+    // Pas de tampon a reserver : render() rend le sien, decrit par
+    // lib->decoder, et processAudioInner y lit directement.
   }
 
   _chaine(ptr, max) {
@@ -167,7 +170,7 @@ export default class VGMStreamPlayer extends Player {
       // du bruit en interpretant les octets de travers.
       throw Error('vgmstream: format de sortie non gere (' + sfmt + ')');
     }
-    this._reste = 0; this._lu = 0; this._bufPtr = 0;
+    this._reste = 0; this._pos = 0; this._bufPtr = 0; this._prec = null;
 
     const codec = this._chaine(fmt + FMT_CODEC_NAME, 128);
     const meta = this._chaine(fmt + FMT_META_NAME, 128);
@@ -195,8 +198,23 @@ export default class VGMStreamPlayer extends Player {
    * livre les siens correctement : vgmstream fournit alors son propre tampon,
    * decrit par lib->decoder.
    *
-   * Le decodeur ne rend pas forcement bufferSize echantillons d'un coup (1024
-   * en pratique) : on conserve donc le reliquat d'un appel au suivant.
+   * REECHANTILLONNAGE
+   *
+   * Les autres moteurs du lecteur recoivent le taux du contexte audio a la
+   * construction et decodent directement a ce taux. vgmstream, lui, decode au
+   * taux du FICHIER et n'offre aucun reechantillonneur. Recopier ses
+   * echantillons tels quels revient donc a les jouer a 48000 / taux du
+   * fichier : mesure sur le catalogue DS, 1,47x a 32 728 Hz et 2,17x a
+   * 22 767 Hz, et bien davantage sur les taux bas. C'est le « dix fois trop
+   * vite » rapporte.
+   *
+   * On interpole donc lineairement entre deux echantillons source. La
+   * frontiere entre deux blocs decodes demande un soin particulier : tenir le
+   * dernier echantillon du bloc, faute de connaitre le premier du suivant,
+   * aplatit une position sur mille et fait entendre un bourdonnement a la
+   * cadence des blocs. On garde donc cette derniere trame dans _prec, et
+   * l'intervalle a cheval s'interpole entre elle et le premier echantillon du
+   * bloc suivant — _pos vaut alors entre -1 et 0, et l'indice -1 designe _prec.
    */
   processAudioInner(channels) {
     if (this.paused || !this.lib) {
@@ -207,35 +225,50 @@ export default class VGMStreamPlayer extends Player {
     const c = this.core;
     const nCanaux = this._canaux || 1;
     const attendus = channels[0].length;
+    // Combien d'echantillons source consommes par echantillon de sortie.
+    const pas = (this._tauxFichier || this.sampleRate) / this.sampleRate;
     let ecrits = 0;
     let fini = false;
 
+    const lire = (indice, canal) => {
+      const idx = indice * nCanaux + Math.min(canal, nCanaux - 1);
+      return this._estFloat
+        ? c.HEAPF32[(this._bufPtr >> 2) + idx]
+        : c.HEAP16[(this._bufPtr >> 1) + idx] / 32768;
+    };
+
     while (ecrits < attendus) {
-      if (this._reste <= 0) {
+      // On change de bloc UN echantillon avant la fin, et l'on garde cette
+      // derniere trame dans _prec : l'intervalle qui enjambe la frontiere
+      // s'interpole alors entre _prec et le premier echantillon du bloc
+      // suivant, au lieu de tenir une valeur. _pos devient negatif le temps
+      // de cet intervalle, et l'indice -1 designe _prec.
+      if (this._pos >= this._reste - 1) {
+        if (this._reste > 0) {
+          if (!this._prec || this._prec.length !== nCanaux) this._prec = new Float32Array(nCanaux);
+          for (let k = 0; k < nCanaux; k++) this._prec[k] = lire(this._reste - 1, k);
+          this._pos -= this._reste;
+        }
         if (c._libvgmstream_render(this.lib) < 0) { fini = true; break; }
         const dec = c.getValue(this.lib + LIB_DECODER_PTR, '*');
         this._bufPtr = c.getValue(dec + DEC_BUF, '*');
         this._reste = c.getValue(dec + DEC_BUF_SAMPLES, 'i32');
-        this._lu = 0;
         if (c.getValue(dec + DEC_DONE, 'i8')) fini = true;
         if (this._reste <= 0) break;
+        // Un bloc trop court pour contenir la position reportee : on repart de
+        // son debut plutot que de sauter en avant.
+        if (this._pos >= this._reste - 1) this._pos = 0;
       }
-      const n = Math.min(this._reste, attendus - ecrits);
+      const i0 = Math.floor(this._pos);
+      const frac = this._pos - i0;
       for (let ch = 0; ch < channels.length; ch++) {
-        // Un flux mono alimente les deux sorties ; au-dela de deux canaux on
-        // ne garde que les premiers, faute de meilleure reduction.
-        const src = Math.min(ch, nCanaux - 1);
-        const sortie = channels[ch];
-        for (let i = 0; i < n; i++) {
-          const idx = (this._lu + i) * nCanaux + src;
-          sortie[ecrits + i] = this._estFloat
-            ? c.HEAPF32[(this._bufPtr >> 2) + idx]
-            : c.HEAP16[(this._bufPtr >> 1) + idx] / 32768;
-        }
+        const k = Math.min(ch, nCanaux - 1);
+        const a = i0 < 0 ? (this._prec ? this._prec[k] : 0) : lire(i0, ch);
+        const b = lire(i0 + 1, ch);
+        channels[ch][ecrits] = a + (b - a) * frac;
       }
-      this._lu += n;
-      this._reste -= n;
-      ecrits += n;
+      this._pos += pas;
+      ecrits++;
     }
 
     if (ecrits < attendus) {
@@ -259,7 +292,17 @@ export default class VGMStreamPlayer extends Player {
   seekMs(ms) {
     if (!this.lib || !this._tauxFichier) return;
     const ech = Math.max(0, Math.round((ms / 1000) * this._tauxFichier));
-    this.core._libvgmstream_seek(this.lib, ech);
+    // libvgmstream_seek prend un int64_t. La colle emscripten est reliee avec
+    // WASM_BIGINT : un entier 64 bits traverse la frontiere en BigInt, et lui
+    // passer un Number leve « Cannot convert 800000 to a BigInt » — le pendant
+    // du Number() que getPositionMs applique au retour.
+    this.core._libvgmstream_seek(this.lib, BigInt(ech));
+    // Le bloc deja decode date d'avant le saut : le relacher, faute de quoi on
+    // rejouerait un fragment de l'ancienne position. _prec aussi, sans quoi la
+    // premiere trame apres le saut s'interpolerait depuis l'ancien endroit.
+    this._reste = 0;
+    this._pos = 0;
+    this._prec = null;
   }
 
   getNumSubtunes() { return this._nbSubtunes; }
