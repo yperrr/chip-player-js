@@ -23,7 +23,15 @@
 # RIGHTS UNDER ARTICLE 4 OF THE EUROPEAN UNION DIRECTIVE 2019/790 ON COPYRIGHT
 # AND RELATED RIGHTS IN THE DIGITAL SINGLE MARKET.
 
-Sitemap: https://chiptune.app/sitemap.xml
+# Pas de directive Sitemap ici.
+#
+# Elle designait le domaine du projet amont, en dur : chaque instance
+# auto-hebergee envoyait donc les moteurs de recherche vers le sitemap d'un
+# AUTRE site, alors que le sien repond 404 — scripts/build-sitemap.js n'est pas
+# lance par `npm run build-lite`.
+#
+# Pour en remettre une : generer le sitemap (`npm run build:sitemap`, avec
+# BASE_URL pose sur son propre domaine) et ajouter la ligne correspondante.
 
 User-agent: *
 Content-Signal: search=yes,ai-train=no
