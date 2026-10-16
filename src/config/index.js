@@ -131,13 +131,51 @@ const FORMATS = [
   'xpk',
   // Flux audio de consoles, lus par vgmstream (src/players/VGMStreamPlayer.js).
   // Liste declaree par la bibliotheque elle-meme, relevee a la construction du
-  // wasm. En sont retirees 50 extensions trop generiques dans un dossier de jeu
+  // wasm. En sont retirees 49 extensions trop generiques dans un dossier de jeu
   // (en-tetes, index, donnees brutes) ou longues d'un ou deux caracteres : le
   // moteur les accepte toujours, mais les INDEXER remplirait le catalogue
-  // d'entrees injouables. Ecartees :
+  // d'entrees injouables.
+  //
+  // « vag » avait d'abord ete ecarte a tort : le VAG de Sony est un format
+  // audio a part entiere, omnipresent dans les rips PS1 et PS2, et rien
+  // d'autre ne porte cette extension. Il est donc indexe.
+  //
+  // Ecartees, trop generiques :
   //   4 8 ad adp ai al ao ap audio bank bar blk bx cd chk d2 da data hd
   //   hdr idx l lp map ms no pcm pk r raw res sc se spt str sx u0 uv v v0
-  //   vag vb vh vs w wb wd x xa xb
+  //   vb vh vs w wb wd x xa xb
+  //
+  // ECARTEES AUSSI : CE QUE *CE* BUILD NE SAIT PAS DECODER
+  //
+  // La bibliotheque annonce les extensions qu'elle CONNAIT, pas celles que
+  // notre edition de liens sait decoder. Sans FFmpeg, libvorbis ni libmpg123
+  // (voir scripts/emscripten/vgmstream/Dockerfile), l'ouverture echoue a la
+  // lecture avec « format non reconnu » — et le fichier figure pourtant au
+  // catalogue. Releve sur de vrais fichiers de la production, un par extension :
+  //
+  //   at3 oma   ATRAC3 et ATRAC3plus : FFmpeg. ATRAC9, lui, est construit.
+  //   xma       XMA : FFmpeg.
+  //   logg      Ogg Vorbis sous un autre nom : libvorbis.
+  //   nop       Switch : 2 fichiers sur 2 en echec. L'Opus en conteneur Ogg
+  //             ou WebM, lui, reste lu — par le navigateur, pas par vgmstream.
+  //   wem       Wwise : ouvre, puis ne rend que du silence (4 fichiers, 4 jeux).
+  //   scd bnk   Conteneurs Square Enix et Wwise : 2 fichiers sur 2 en echec.
+  //   sem       Table d'evenements de Smash Melee, pas de l'audio.
+  //   txtp      Fichier de configuration vgmstream, qui renvoie a des fichiers
+  //             voisins : inapplicable ici.
+  //
+  // Par la meme raison de codec, sans fichier sous la main pour le mesurer :
+  //   aa3 lac3 laac lasf lflac lmp3 lmp4 lopus lwma xma2 xwma
+  //
+  // Et quatre collisions de nom, les plus trompeuses : « psf », « ssf »,
+  // « dsf » et « gsf » designent chez vgmstream de tout autres formats que les
+  // PlayStation / Saturn / Dreamcast / GBA Sound Format dont le catalogue est
+  // plein — la famille *SF demande un emulateur par machine, hors perimetre.
+  // Les indexer faisait apparaitre 40 .psf, 9 .ssf et 6 .dsf injouables.
+  //
+  // Les 28 formats qui PASSENT cet essai restent, eux, declares :
+  //   adx afc aifc ast at9 bcstm bfstm bns brstm brstmspm dsp fsb genh hps
+  //   idsp isws kns mca mib npsf rwav spsd ss2 ssm sts strm swav xwb
   '208',
   '2dx',
   '2dx9',
@@ -146,7 +184,6 @@ const FORMATS = [
   '800',
   '9tav',
   'a3c',
-  'aa3',
   'aaf',
   'aax',
   'abc',
@@ -182,7 +219,6 @@ const FORMATS = [
   'asf',
   'asr',
   'ast',
-  'at3',
   'at9',
   'atsl',
   'atsl3',
@@ -221,7 +257,6 @@ const FORMATS = [
   'bkr',
   'bmdx',
   'bms',
-  'bnk',
   'bnm',
   'bns',
   'bnsf',
@@ -268,7 +303,6 @@ const FORMATS = [
   'drm',
   'ds2',
   'dsb',
-  'dsf',
   'dsp',
   'dspw',
   'dtk',
@@ -307,7 +341,6 @@ const FORMATS = [
   'gmd',
   'gms',
   'grn',
-  'gsf',
   'gsp',
   'gtd',
   'gwb',
@@ -381,18 +414,14 @@ const FORMATS = [
   'kvs',
   'kwa',
   'l00',
-  'laac',
-  'lac3',
   'ladpcm',
   'laif',
   'laifc',
   'laiff',
-  'lasf',
   'lbin',
   'ldat',
   'ldt',
   'lep',
-  'lflac',
   'lin',
   'lm0',
   'lm1',
@@ -403,11 +432,7 @@ const FORMATS = [
   'lm6',
   'lm7',
   'lmp2',
-  'lmp3',
-  'lmp4',
   'lmpc',
-  'logg',
-  'lopus',
   'lpcm',
   'lpk',
   'lps',
@@ -417,7 +442,6 @@ const FORMATS = [
   'lstm',
   'lwav',
   'lwd',
-  'lwma',
   'mab',
   'mad',
   'mc3',
@@ -468,7 +492,6 @@ const FORMATS = [
   'nds',
   'nfx',
   'nlsd',
-  'nop',
   'nps',
   'npsf',
   'nsa',
@@ -486,7 +509,6 @@ const FORMATS = [
   'ogl',
   'ogs',
   'ogv',
-  'oma',
   'omu',
   'oor',
   'opu',
@@ -511,7 +533,6 @@ const FORMATS = [
   'pos',
   'ps3',
   'psb',
-  'psf',
   'psh',
   'psn',
   'pth',
@@ -563,7 +584,6 @@ const FORMATS = [
   'sbk',
   'sbr',
   'sbv',
-  'scd',
   'sch',
   'sd9',
   'sdd',
@@ -576,7 +596,6 @@ const FORMATS = [
   'seb',
   'sed',
   'seg',
-  'sem',
   'sf0',
   'sfa',
   'sfl',
@@ -628,7 +647,6 @@ const FORMATS = [
   'srsa',
   'ss2',
   'ssd',
-  'ssf',
   'ssm',
   'ssp',
   'sspr',
@@ -667,7 +685,6 @@ const FORMATS = [
   'tsdse4',
   'tun',
   'txth',
-  'txtp',
   'ue4opus',
   'ueba',
   'ueopus',
@@ -677,6 +694,7 @@ const FORMATS = [
   'utk',
   'va3',
   'vab',
+  'vag',
   'vai',
   'vam',
   'vas',
@@ -718,7 +736,6 @@ const FORMATS = [
   'wb2',
   'wbd',
   'wbk',
-  'wem',
   'wic',
   'wiive',
   'wip',
@@ -749,8 +766,6 @@ const FORMATS = [
   'xbw',
   'xen',
   'xhd',
-  'xma',
-  'xma2',
   'xmd',
   'xms',
   'xmu',
@@ -769,7 +784,6 @@ const FORMATS = [
   'xwb',
   'xwc',
   'xwm',
-  'xwma',
   'xws',
   'xwv',
   'ydsp',
