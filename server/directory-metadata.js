@@ -1,6 +1,7 @@
 const { LRUCache } = require('lru-cache');
 const path = require('path');
 const { dbStatements } = require('./database.js');
+const { SITE_URL } = require('./site-url');
 
 const {
   getDirMetadataStmt,
@@ -490,13 +491,13 @@ function buildBreadcrumbJsonLd(pathSegments) {
       '@type': 'ListItem',
       position: 1,
       name: 'Home',
-      item: 'https://chiptune.app/',
+      item: SITE_URL + '/',
     },
     {
       '@type': 'ListItem',
       position: 2,
       name: 'Browse',
-      item: 'https://chiptune.app/browse',
+      item: SITE_URL + '/browse',
     },
   ];
 
@@ -507,7 +508,7 @@ function buildBreadcrumbJsonLd(pathSegments) {
       '@type': 'ListItem',
       position: idx + 3,
       name: segment,
-      item: `https://chiptune.app/browse/${encoded}`,
+      item: `${SITE_URL}/browse/${encoded}`,
     });
   });
 
@@ -611,8 +612,8 @@ function resolveDirectoryMetadata(rawBrowsePath, options = {}) {
       title: 'Browse Music Archives',
       description:
         'Browse over 380,000 video game music and chiptune tracks across 31,000 directories. Listen to SPC, SID, NSF, VGM, MIDI, MOD and more.',
-      url: 'https://chiptune.app/browse',
-      image: 'https://chiptune.app/chip-player-1200x640.png',
+      url: SITE_URL + '/browse',
+      image: SITE_URL + '/chip-player-1200x640.png',
       schemaJsonLd: JSON.stringify(buildBreadcrumbJsonLd([])),
       noscriptContent:
         '<div class="seo-crawler-content"><h1>Browse Music Archives</h1><p>Browse over 380,000 tracks.</p></div>',
@@ -633,8 +634,8 @@ function resolveDirectoryMetadata(rawBrowsePath, options = {}) {
     const result = {
       title: fallbackTitle,
       description: `Browse chiptune and video game music tracks in ${fallbackTitle}.`,
-      url: `https://chiptune.app/browse/${normalizedPath.split('/').map(encodeURIComponent).join('/')}`,
-      image: 'https://chiptune.app/chip-player-1200x640.png',
+      url: `${SITE_URL}/browse/${normalizedPath.split('/').map(encodeURIComponent).join('/')}`,
+      image: SITE_URL + '/chip-player-1200x640.png',
       schemaJsonLd: JSON.stringify(buildBreadcrumbJsonLd(segments)),
       noscriptContent: '',
     };
@@ -669,13 +670,13 @@ function resolveDirectoryMetadata(rawBrowsePath, options = {}) {
     fmtStr,
   });
 
-  let image = 'https://chiptune.app/chip-player-1200x640.png';
+  let image = SITE_URL + '/chip-player-1200x640.png';
   if (dir.image_path) {
     const encodedPath = dir.image_path.split('/').map(encodeURIComponent).join('/');
-    image = `https://chiptune.app/catalog/${encodedPath}`;
+    image = `${SITE_URL}/catalog/${encodedPath}`;
   }
 
-  const canonicalUrl = `https://chiptune.app/browse/${pathSegments.map(encodeURIComponent).join('/')}`;
+  const canonicalUrl = `${SITE_URL}/browse/${pathSegments.map(encodeURIComponent).join('/')}`;
   const breadcrumbSchema = buildBreadcrumbJsonLd(pathSegments);
   const collectionSchema = buildCollectionPageJsonLd(title, description, canonicalUrl, image);
   const combinedSchema = [breadcrumbSchema, collectionSchema];

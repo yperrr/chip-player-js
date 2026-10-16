@@ -26,6 +26,7 @@ const { resolveDirectoryMetadata } = require('./directory-metadata');
 const { requireAuth, optionalAuth } = require('./middleware/auth.js');
 const { validate } = require('./middleware/validate');
 const { SettingsSchema, FavoriteSchema, PlaybackSchema } = require('./schemas');
+const { SITE_URL } = require('./site-url');
 
 const {
   searchStmt,
@@ -770,7 +771,7 @@ app.get(clientRoutes, cache1Hour, async (req, res) => {
     noscriptContent,
   } = getHtmlInjectionsForRequest(req);
 
-  const previewImage = songId ? `https://chiptune.app/preview?s=${encodeURIComponent(songId)}` : image;
+  const previewImage = songId ? `${SITE_URL}/preview?s=${encodeURIComponent(songId)}` : image;
   const defaultNoscript = 'You need to enable JavaScript to run this app.';
 
   const finalHtml = html
@@ -800,8 +801,8 @@ function getHtmlInjectionsForRequest(req) {
     return {
       title: 'Top Charts - Most Played & Favorited Chiptunes',
       description: 'Explore the all-time and monthly most played and most favorited chiptune tracks and video game music on Chip Player JS.',
-      url: 'https://chiptune.app/top',
-      image: 'https://chiptune.app/chip-player-1200x640.png',
+      url: SITE_URL + '/top',
+      image: SITE_URL + '/chip-player-1200x640.png',
       songId: null,
       scriptTag: '',
       schemaJsonLd: '',
@@ -824,9 +825,9 @@ function getHtmlInjectionsForRequest(req) {
     };
   }
 
-  let url = `https://chiptune.app${req.path}`;
+  let url = `${SITE_URL}${req.path}`;
   let song;
-  let image = 'https://chiptune.app/chip-player-1200x640.png';
+  let image = SITE_URL + '/chip-player-1200x640.png';
   let title = 'Chip Player JS';
   let description = 'An online MIDI and VGM music player with SoundFont support. Over 380,000 songs, focused on performance and nostalgia. Play VGM, SPC, NSF, S3M, XM, MOD and more.';
 
@@ -860,7 +861,7 @@ function getHtmlInjectionsForRequest(req) {
 
     if (song) {
       // Canonical URL is https://chiptune.app/?play=ABCD1234
-      url = `https://chiptune.app/?play=${encodeURIComponent(song.song_id)}`;
+      url = `${SITE_URL}/?play=${encodeURIComponent(song.song_id)}`;
 
       const chipConfig = {
         songId: song.song_id,
@@ -885,7 +886,7 @@ function getHtmlInjectionsForRequest(req) {
       if (song.image_path) {
         const parts = song.image_path.split('/');
         const encodedPath = parts.map(encodeURIComponent).join('/');
-        image = `https://chiptune.app/catalog/${encodedPath}`;
+        image = `${SITE_URL}/catalog/${encodedPath}`;
       }
       songId = song.song_id;
 
