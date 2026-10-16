@@ -370,6 +370,11 @@ export default class GMEPlayer extends Player {
   }
 
   isPlaying() {
+    // Sans contexte, rien n'est charge : le dire franchement. Ce lecteur part
+    // de paused = false des la construction, si bien qu'avant tout fichier il
+    // se declarait en lecture — et passait au passage un pointeur nul a
+    // gme_track_ended, dont la lecture tombait sur l'adresse 0 du tas wasm.
+    if (!this.gmeCtx) return false;
     return !this.isPaused() && core._gme_track_ended(this.gmeCtx) !== 1;
   }
 

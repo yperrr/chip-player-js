@@ -313,6 +313,12 @@ export default class MIDIPlayer extends Player {
           // TODO: remove if removing Dummy Device
           this.setParameter('mididevice', 1);
         }
+      }).catch(e => {
+        // Refus de l'autorisation, ou politique de permissions qui l'interdit.
+        // Sans ce catch, le rejet remonte en « unhandled rejection » a chaque
+        // fichier MIDI ouvert : la sortie MIDI externe est un supplement, son
+        // absence ne doit pas se signaler comme une erreur du lecteur.
+        console.warn('Sortie MIDI externe indisponible :', e.message);
       });
     } else {
       console.warn('Web MIDI API not supported. Try Chrome if you want to use external MIDI output devices.');
