@@ -43,6 +43,12 @@ const MOTEURS = [
     correctif: 'reconstruire avec scripts/emscripten/libopenmpt/ en completant EXPORTED_FUNCTIONS',
   },
   {
+    nom: 'libkss',
+    colle: 'src/libkss.js',
+    fichiers: ['src/players/KSSPlayer.js'],
+    correctif: 'reconstruire avec scripts/emscripten/libkss/ en completant EXPORTED_FUNCTIONS',
+  },
+  {
     nom: 'chip-core',
     colle: 'src/chip-core.js',
     defaut: true,
@@ -62,6 +68,20 @@ function exportsDeLaColle(texte) {
 
 // Appels de la forme core._x, chipCore._x, this.core._x — c'est ainsi que les
 // lecteurs atteignent le natif.
+//
+// Les alias locaux comptent aussi. Un lecteur qui ecrit `const c = this.core`
+// avant une boucle serree — VGMStreamPlayer et KSSPlayer le font, et c'est la
+// bonne facon d'eviter deux indirections par echantillon — rendait ses appels
+// invisibles a ce script, qui annoncait huit symboles la ou le fichier en
+// appelle vingt. Un garde-fou qui ne voit pas ce qu'il garde ne garde rien.
+function aliasDuCoeur(texte) {
+  const noms = new Set(['core', 'chipCore']);
+  for (const m of texte.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:this\.)?(?:core|chipCore)\s*[;,\n]/g)) {
+    noms.add(m[1]);
+  }
+  return [...noms];
+}
+
 function symbolesUtilises(dossier, colles) {
   const utilises = new Map();   // fichier relatif -> Set de symboles
   (function parcourir(d) {
@@ -72,7 +92,9 @@ function symbolesUtilises(dossier, colles) {
       const rel = path.relative(RACINE, p).replace(/\\/g, '/');
       if (colles.has(rel)) continue;          // ne pas s'analyser soi-meme
       const texte = fs.readFileSync(p, 'utf-8');
-      for (const m of texte.matchAll(/\b(?:this\.)?(?:core|chipCore)\.(_[A-Za-z0-9_]+)/g)) {
+      const noms = aliasDuCoeur(texte).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const motif = new RegExp('\\b(?:this\\.)?(?:' + noms.join('|') + ')\\.(_[A-Za-z0-9_]+)', 'g');
+      for (const m of texte.matchAll(motif)) {
         if (!utilises.has(rel)) utilises.set(rel, new Set());
         utilises.get(rel).add(m[1]);
       }
