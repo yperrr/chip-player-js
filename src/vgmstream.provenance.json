@@ -8,17 +8,18 @@
     "image": "emscripten/emsdk:6.0.0",
     "commande": "emcmake cmake + emmake make libvgmstream, puis edition de liens emcc de la bibliotheque statique",
     "codecsAbsents": "FFmpeg, libmpg123, libvorbis, CELT, SPEEX et G.719 sont desactives : les construire pour wasm triplerait la recette. ATRAC9, lui, est inclus - c'est une bibliotheque autonome que CMake recupere et compile, et il vaut a lui seul ~1 800 archives joshw (Vita, PS4). Les formats qui dependent des autres (atrac3, xma, wma, fsb vorbis) sont reconnus mais ne se decodent pas.",
-    "note": "Construit a la main puis commite, comme chip-core et libopenmpt. Colle et wasm viennent TOUJOURS de la meme execution."
+    "note": "Construit a la main puis commite, comme chip-core et libopenmpt. Colle et wasm viennent TOUJOURS de la meme execution.",
+    "codecs": "FFmpeg n7.1.1 (atrac3, atrac3p, xma1, xma2, wmav1, wmav2, wmapro, aac, ac3, opus, vorbis, flac, mp3float) et libvorbis/libogg, construits par les recettes de l amont. libmpg123, CELT, SPEEX et G.719 restent desactives."
   },
   "colle": {
     "fichier": "src/vgmstream.js",
-    "octets": 59900,
-    "sha256": "4236a4ad766431288cfb34e5debb66f09dfed427f8c4d0269bc8e5de6fef23d6"
+    "octets": 64006,
+    "sha256": "cba4ab33f1577c600e65a4cd49b8c0c1b6ab3e54610a2e3ac715373780069c4d"
   },
   "wasm": {
     "fichier": "src/vgmstream.wasm",
-    "octets": 1283802,
-    "sha256": "a11d81a59db63b071a34f931b922600edf061173e56f9eb4a608f9c49d2a99d9"
+    "octets": 3717499,
+    "sha256": "b89676643dc9044346c22592ca832d8f250a4502c43c7b16d7aba0da7ca6a43f"
   },
   "extensions": {
     "fichier": "src/vgmstream-extensions.json",
