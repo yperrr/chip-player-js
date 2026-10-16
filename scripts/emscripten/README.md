@@ -39,3 +39,19 @@ Le lecteur a déjà payé ce prix une fois : la greffe `native-audio.js` jouait 
 côté du graphe, et deux morceaux pouvaient se superposer. La cible `wasm` rend
 un couple `.js`/`.wasm` ordinaire, que le lecteur pilote depuis son propre
 `processAudioInner`, comme tous les autres moteurs.
+
+## Lire une structure C depuis JavaScript
+
+Deux façons, et elles ne se valent pas.
+
+`VGMStreamPlayer` calcule les décalages de `libvgmstream_t` **à la main** et lit
+le tas. C'était la seule voie : l'amont n'expose pas d'accesseurs. Le prix est
+réel — un champ ajouté en amont et les lectures deviennent fausses *sans
+erreur*, d'où le contrôle de vraisemblance `_decalagesPlausibles()` qui refuse
+un taux d'échantillonnage de trois milliards plutôt que de jouer du bruit.
+
+`libkss` montre la bonne façon quand on peut : `scripts/emscripten/libkss/shim.c`
+est une poignée d'accesseurs compilés **avec** la bibliothèque. Ils suivent la
+structure d'eux-mêmes ; un champ qui bouge casse la compilation, au bon moment,
+plutôt que la lecture trois mois plus tard. Quarante lignes de C, et plus aucun
+décalage dans le JavaScript.

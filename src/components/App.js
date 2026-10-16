@@ -32,6 +32,7 @@ import LocalFilesManager from '../LocalFilesManager';
 import Sequencer, { NUM_REPEAT_MODES, NUM_SHUFFLE_MODES, REPEAT_OFF, SHUFFLE_OFF } from '../Sequencer';
 
 import GMEPlayer from '../players/GMEPlayer';
+import KSSPlayer from '../players/KSSPlayer';
 import MIDIPlayer from '../players/MIDIPlayer';
 import V2MPlayer from '../players/V2MPlayer';
 import XMPPlayer from '../players/XMPPlayer';
@@ -187,6 +188,13 @@ class App extends React.Component {
     // Create all the players. Players will set up IDBFS mount points.
     const players = [
       MIDIPlayer,
+      // Avant GMEPlayer, pour la meme raison qu'OpenMPTPlayer passe avant
+      // XMPPlayer : GME lit le .kss, mais mal. Sur « MSX/Snatcher », piste 104,
+      // sa crete tient en 0,04 la ou ses autres formats donnent 0,22 a 0,35, et
+      // quatre voix sur huit seulement sortent quelque chose. libkss est
+      // l'implementation de reference du format. GME garde l'extension et reste
+      // le filet si l'on veut revenir en arriere.
+      KSSPlayer,
       GMEPlayer,
       // Avant XMPPlayer : le sequenceur retient le PREMIER moteur qui accepte
       // l'extension. libopenmpt lit 66 formats de tracker la ou libxmp-lite en
