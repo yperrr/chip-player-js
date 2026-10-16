@@ -1,0 +1,27 @@
+{
+  "bibliotheque": "libkss",
+  "version": "2ed9588 (2026-10-11)",
+  "licence": "MIT",
+  "source": "https://github.com/digital-sound-antiques/libkss",
+  "sous_modules": "emu2149 (PSG), emu2212 (SCC), emu2413 (OPLL), emu8950 (MSX-AUDIO), emu76489 (SN76489), kmz80 (Z80)",
+  "construction": {
+    "recette": "scripts/emscripten/libkss/Dockerfile",
+    "image": "emscripten/emsdk:6.0.0",
+    "commande": "emcmake cmake . && emmake make kss, puis emcc sur les archives statiques",
+    "note": "Le couple est construit a la main puis commite. Rien ne le tire pendant la construction du lecteur. Colle et wasm viennent TOUJOURS de la meme execution - les exports du wasm sont minifies et c'est la colle qui les mappe."
+  },
+  "shim": {
+    "fichier": "scripts/emscripten/libkss/shim.c",
+    "note": "Accesseurs compiles AVEC la bibliotheque, pour lire la structure KSS sans calculer de decalages a la main. Un champ qui bouge casse la compilation, pas la lecture."
+  },
+  "colle": {
+    "fichier": "src/libkss.js",
+    "octets": 60757,
+    "sha256": "2d758f555e76579eff031e4b85676dc5521dba639100d6ce556cee046a419dd9"
+  },
+  "wasm": {
+    "fichier": "src/libkss.wasm",
+    "octets": 159076,
+    "sha256": "4184a93dbc53f3b8d2e52836ec159f82428a0b34a8d204553249f43aaba9ea2f"
+  }
+}
