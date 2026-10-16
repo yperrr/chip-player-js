@@ -26,13 +26,27 @@ const MAX_VOICES = 64;
 const REPLACE_STATE_ON_SEEK = false;
 const FORMATS = [
   // Decodes par le navigateur, via NativeAudioPlayer.
+  'aa3',
   'aac',
+  'at3',
   'flac',
+  'laac',
+  'lac3',
+  'lasf',
+  'lflac',
+  'lmp3',
+  'lmp4',
+  'logg',
+  'lopus',
+  'lwma',
   'm4a',
   'mp3',
+  'nop',
   'oga',
   'ogg',
+  'oma',
   'opus',
+  'scd',
   'wav',
   'webm',
   'ay',
@@ -56,6 +70,7 @@ const FORMATS = [
   'v2m',
   'vgm',
   'vgz',
+  'wem',
   'wlf',
   // Declares par VGMPlayer mais absents de cette liste : les dossiers qui ne
   // contenaient que ces formats restaient invisibles au catalogue.
@@ -148,34 +163,39 @@ const FORMATS = [
   // ECARTEES AUSSI : CE QUE *CE* BUILD NE SAIT PAS DECODER
   //
   // La bibliotheque annonce les extensions qu'elle CONNAIT, pas celles que
-  // notre edition de liens sait decoder. Sans FFmpeg, libvorbis ni libmpg123
-  // (voir scripts/emscripten/vgmstream/Dockerfile), l'ouverture echoue a la
-  // lecture avec « format non reconnu » — et le fichier figure pourtant au
-  // catalogue. Releve sur de vrais fichiers de la production, un par extension :
+  // notre edition de liens sait decoder. Cette liste-la se releve sur de VRAIS
+  // FICHIERS, un par extension, et pas autrement : quand FFmpeg a ete ajoute a
+  // la recette, la liste annoncee par la bibliotheque n'a pas bouge d'un seul
+  // nom — 703 avant, 703 apres — alors que neuf formats sont passes de muets a
+  // lisibles.
   //
-  //   at3 oma   ATRAC3 et ATRAC3plus : FFmpeg. ATRAC9, lui, est construit.
-  //   xma       XMA : FFmpeg.
-  //   logg      Ogg Vorbis sous un autre nom : libvorbis.
-  //   nop       Switch : 2 fichiers sur 2 en echec. L'Opus en conteneur Ogg
-  //             ou WebM, lui, reste lu — par le navigateur, pas par vgmstream.
-  //   wem       Wwise : ouvre, puis ne rend que du silence (4 fichiers, 4 jeux).
-  //   scd bnk   Conteneurs Square Enix et Wwise : 2 fichiers sur 2 en echec.
-  //   sem       Table d'evenements de Smash Melee, pas de l'audio.
-  //   txtp      Fichier de configuration vgmstream, qui renvoie a des fichiers
-  //             voisins : inapplicable ici.
+  // Etat au 2026-10-16, apres l'ajout de FFmpeg et libvorbis
+  // (scripts/emscripten/vgmstream/Dockerfile) :
   //
-  // Par la meme raison de codec, sans fichier sous la main pour le mesurer :
-  //   aa3 lac3 laac lasf lflac lmp3 lmp4 lopus lwma xma2 xwma
+  //   LISENT MAINTENANT, mesures : at3 et oma (ATRAC3/3plus), aa3, logg
+  //   (Vorbis sous un autre nom), scd (Square Enix), wem (Wwise, qui ouvrait
+  //   puis ne rendait que du silence), nop (Opus de la Switch), fsb et msf,
+  //   qui echouaient tous deux a l'ouverture.
+  //
+  //   ECHOUENT ENCORE, mesures :
+  //     xma xma2  Un abort() d'emscripten sans message, pas un refus de
+  //               format : la cause est a chercher avec une construction
+  //               -sASSERTIONS. Aucun fichier au catalogue, 989 archives joshw.
+  //     bnk       Banque Wwise : 2 fichiers, 2 jeux, « format non reconnu ».
+  //               Le conteneur renvoie aux .wem voisins, qui eux se lisent.
+  //     sem       Table d'evenements de Smash Melee : ce n'est pas de l'audio.
+  //     txtp      Fichier de configuration vgmstream, qui renvoie a des
+  //               fichiers voisins : inapplicable ici.
+  //
+  //   DECLAREES SANS FICHIER SOUS LA MAIN, leur codec etant desormais present :
+  //     lac3 laac lasf lflac lmp3 lmp4 lopus lwma xwma
   //
   // Et quatre collisions de nom, les plus trompeuses : « psf », « ssf »,
   // « dsf » et « gsf » designent chez vgmstream de tout autres formats que les
   // PlayStation / Saturn / Dreamcast / GBA Sound Format dont le catalogue est
-  // plein — la famille *SF demande un emulateur par machine, hors perimetre.
-  // Les indexer faisait apparaitre 40 .psf, 9 .ssf et 6 .dsf injouables.
-  //
-  // Les 28 formats qui PASSENT cet essai restent, eux, declares :
-  //   adx afc aifc ast at9 bcstm bfstm bns brstm brstmspm dsp fsb genh hps
-  //   idsp isws kns mca mib npsf rwav spsd ss2 ssm sts strm swav xwb
+  // plein. Les indexer faisait apparaitre 40 .psf, 9 .ssf et 6 .dsf injouables.
+  // Ils reviendront par la porte d'a cote : un moteur dedie a la famille *SF,
+  // qui n'est pas une affaire de codec mais d'emulation de machine.
   '208',
   '2dx',
   '2dx9',
@@ -784,6 +804,7 @@ const FORMATS = [
   'xwb',
   'xwc',
   'xwm',
+  'xwma',
   'xws',
   'xwv',
   'ydsp',
