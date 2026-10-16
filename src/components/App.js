@@ -525,6 +525,13 @@ class App extends React.Component {
       }
     } else {
       const player = this.sequencer.getPlayer();
+      // Mise a jour tardive : le sequenceur a deja relache son lecteur. Cela
+      // arrive quand un fichier echoue et que l'on en demande un autre dans la
+      // seconde — l'avance automatique sur erreur (ERROR_DELAY_MS) met
+      // this.player a null, puis l'etat du lecteur suivant arrive. Sans cette
+      // garde, le player.getMetadata() plus bas leve un TypeError qui remonte
+      // jusqu'a l'ecouteur d'evenements.
+      if (!player) return;
       const songPath = this.sequencer.getCurrSongPath();
       // TODO: this is messy. imageUrl comes asynchronously from the /metadata request.
       //       Title, artist, etc. come synchronously from player.getMetadata().
