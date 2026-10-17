@@ -1,0 +1,29 @@
+{
+  "bibliotheque": "psflib + Highly_Experimental + Highly_Theoretical",
+  "licence": "psflib : MIT. Highly_Experimental et Highly_Theoretical : voir Readme.txt de chaque depot (Neill Corlett, Christopher Snowhill).",
+  "sources": {
+    "psflib": "https://github.com/kode54/psflib @ 95509e0c6f13d769593bbf51a1b0e0efdc355ba1",
+    "Highly_Experimental": "https://github.com/kode54/Highly_Experimental @ ccffd7b5f21ab8feaed78544b677e7da0ad43ce7",
+    "Highly_Theoretical": "https://github.com/kode54/Highly_Theoretical @ 2998a4bf550949cd2daee249e725a64462cf15e0"
+  },
+  "machines": "Saturn (68000 + SCSP) et Dreamcast (ARM7 + AICA) : operationnels. PlayStation (R3000 + SPU) : compile, mais inactif faute d image de BIOS Sony, que Highly_Experimental exige et que personne ne distribue. psfx_set_bios() attend celle que l utilisateur voudrait fournir.",
+  "construction": {
+    "recette": "scripts/emscripten/psf/Dockerfile",
+    "image": "emscripten/emsdk:6.0.0",
+    "note": "Listes de sources et defines repris des fichiers projet de l amont (Core/Core.pro), pas d un balayage de dossier : ces depots contiennent des gabarits de generateur qui ne compilent pas. zlib vient du port officiel emscripten."
+  },
+  "shim": {
+    "fichier": "scripts/emscripten/psf/shim.c",
+    "note": "psflib ne se pilote que par rappels C. Les ecrire ici evite de fabriquer des pointeurs de fonction depuis JavaScript et de faire traverser la frontiere a chaque octet lu."
+  },
+  "colle": {
+    "fichier": "src/psf.js",
+    "octets": 59060,
+    "sha256": "bd53dfa1caa0dec93fa426339eebcc9e180d46a18734df4ce33d51cb3a16c08d"
+  },
+  "wasm": {
+    "fichier": "src/psf.wasm",
+    "octets": 627753,
+    "sha256": "74edb66dda1421662e09314a16d9db74533076d3669e832da1c812fe023c2ae4"
+  }
+}

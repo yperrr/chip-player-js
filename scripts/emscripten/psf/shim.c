@@ -31,6 +31,7 @@
 
 #include "psflib.h"
 #include "psx.h"
+#include "bios.h"
 #include "sega.h"
 
 #define PSFX_PSF1 0x01
@@ -176,8 +177,28 @@ int psfx_open(const char *chemin, int type) {
   G.type = (uint8_t)type;
 
   if (type == PSFX_PSF1) {
+    /*
+     * Le coeur PlayStation EXIGE une image de BIOS Sony, et son auteur ne s'en
+     * cache pas : « The unfortunate dirty secret here is that Sony BIOS is
+     * used » (Core/Readme.txt). Il n'en embarque aucune — bios.c declare un
+     * pointeur nul —, elle doit venir de l'exterieur par bios_set_image().
+     *
+     * Le piege est que psx_init() REND ZERO, c'est-a-dire le code de SUCCES,
+     * quand le BIOS manque :
+     *
+     *     // BIOS must be loaded first
+     *     if ( !bios_get_image_native() || !bios_get_imagesize() ) return 0;
+     *
+     * Rien n'est alors initialise, psx_get_state_size() rend n'importe quoi,
+     * et le R3000 part executer de la memoire vide : l'onglet se fige, sans
+     * message. On verifie donc le BIOS NOUS-MEMES, avant d'appeler quoi que ce
+     * soit, et on rend une erreur franche.
+     */
+    if (!bios_get_image_native() || !bios_get_imagesize()) return -10;
     if (!psx_pret) { if (psx_init() != 0) return -1; psx_pret = 1; }
-    G.state = calloc(1, psx_get_state_size(1));
+    uint32_t taille = psx_get_state_size(1);
+    if (taille == 0 || taille > (64u << 20)) return -11;
+    G.state = calloc(1, taille);
     if (!G.state) return -2;
     psx_clear_state(G.state, 1);
   } else if (type == PSFX_SSF || type == PSFX_DSF) {
@@ -230,6 +251,24 @@ int psfx_render(int16_t *buf, int demandes) {
 }
 
 const char *psfx_tags(void) { return G.tags ? G.tags : ""; }
+
+/*
+ * Fournit l'image de BIOS que reclame le coeur PlayStation.
+ *
+ * Elle n'est pas, et ne sera pas, embarquee : c'est du code sous droits de
+ * Sony. Cette porte existe pour qu'un utilisateur puisse donner la sienne,
+ * celle de sa propre console. Tant qu'elle n'est pas appelee, psfx_open rend
+ * -10 pour un .psf et le lecteur le dit clairement.
+ *
+ * bios_set_image inverse les octets EN PLACE, quatre par quatre : l'appelant
+ * doit donc lui donner un tampon dont il garde la propriete et qu'il ne
+ * relira pas tel quel.
+ */
+void psfx_set_bios(uint8_t *image, int taille) {
+  if (image && taille > 0) bios_set_image(image, (uint32_t)taille);
+}
+
+int psfx_a_bios(void) { return bios_get_image_native() && bios_get_imagesize() ? 1 : 0; }
 
 int psfx_sample_rate(void) { return PSFX_RATE; }
 

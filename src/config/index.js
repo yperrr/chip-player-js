@@ -814,6 +814,22 @@ const FORMATS = [
   'zsm',
   'zss',
   'zwv',
+  // Famille *Sound Format*, lue par src/players/PSFPlayer.js : ce ne sont
+  // pas des codecs mais des programmes de console, qu'un emulateur execute.
+  // Voir src/psf.provenance.json. Les bibliotheques partagees qui les
+  // accompagnent — .ssflib, .dsflib — ne figurent PAS ici : ce sont des
+  // dependances, pas des morceaux, et les indexer peuplerait le catalogue
+  // d'entrees qui ne jouent rien.
+  //
+  // « psf » et « minipsf » manquent a l'appel, et c'est mesure : le coeur
+  // PlayStation reclame une image de BIOS Sony que personne ne peut
+  // distribuer. Tant qu'elle n'est pas fournie, ces fichiers resteraient au
+  // catalogue sans jamais jouer — la situation meme qui avait motive leur
+  // retrait. Saturn et Dreamcast, eux, n'ont besoin de rien.
+  'ssf',
+  'minissf',
+  'dsf',
+  'minidsf',
 ];
 const SOUNDFONT_MOUNTPOINT = '/soundfonts';
 const SOUNDFONTS = [
