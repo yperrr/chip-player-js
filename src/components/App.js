@@ -270,6 +270,26 @@ class App extends React.Component {
     this.sequencer.on('sequencerStateUpdate', this.handleSequencerStateUpdate);
     this.sequencer.on('playerError', (message) => this.props.toastContext.enqueueToast(message, ToastLevels.ERROR));
 
+    // Prise offerte aux greffes de la pile auto-hebergee.
+    //
+    // POURQUOI UNE VARIABLE GLOBALE
+    //
+    // frontend/subtune-jump.js ajoute au pied de page un champ « aller a la
+    // sous-piste n ». Faute de prise, il ne pouvait l'atteindre que de deux
+    // facons : cliquer n fois sur la fleche suivante — quarante millisecondes
+    // par piste, donc quatre secondes pour aller a la centieme — ou poser
+    // location.href, c'est-a-dire RECHARGER LA PAGE. Sur un .kss de MSX, qui
+    // declare 256 morceaux, le second cas etait la regle.
+    //
+    // Une greffe qui irait chercher l'instance React par son arbre de fibres
+    // casserait a la premiere mise a jour de React. Cette prise-ci est un
+    // contrat minuscule et explicite : trois fonctions, documentees ici.
+    window.chipPlayer = {
+      playSubtune: (i) => this.sequencer.playSubtune(i),
+      getSubtune: () => this.sequencer.getPlayer()?.getSubtune() ?? 0,
+      getNumSubtunes: () => this.sequencer.getPlayer()?.getNumSubtunes() ?? 1,
+    };
+
     // TODO: Move to separate processUrlParams method.
     const urlParams = new URLSearchParams(window.location.search);
     // The server will read the ?play=... param and inject values in the __chipConfig object.
