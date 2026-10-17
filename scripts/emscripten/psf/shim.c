@@ -260,9 +260,10 @@ const char *psfx_tags(void) { return G.tags ? G.tags : ""; }
  * celle de sa propre console. Tant qu'elle n'est pas appelee, psfx_open rend
  * -10 pour un .psf et le lecteur le dit clairement.
  *
- * bios_set_image inverse les octets EN PLACE, quatre par quatre : l'appelant
- * doit donc lui donner un tampon dont il garde la propriete et qu'il ne
- * relira pas tel quel.
+ * Le coeur CONSERVE LE POINTEUR tel quel — il ne recopie rien. Le tampon doit
+ * donc rester valide tant que la bibliotheque s'en sert, c'est-a-dire toute la
+ * session. (L'inversion d'octets que fait bios_set_image est, elle, sous
+ * #ifdef EMU_BIG_ENDIAN : elle n'a pas lieu ici.)
  */
 void psfx_set_bios(uint8_t *image, int taille) {
   if (image && taille > 0) bios_set_image(image, (uint32_t)taille);

@@ -821,11 +821,14 @@ const FORMATS = [
   // dependances, pas des morceaux, et les indexer peuplerait le catalogue
   // d'entrees qui ne jouent rien.
   //
-  // « psf » et « minipsf » manquent a l'appel, et c'est mesure : le coeur
-  // PlayStation reclame une image de BIOS Sony que personne ne peut
-  // distribuer. Tant qu'elle n'est pas fournie, ces fichiers resteraient au
-  // catalogue sans jamais jouer — la situation meme qui avait motive leur
-  // retrait. Saturn et Dreamcast, eux, n'ont besoin de rien.
+  // « psf » et « minipsf » sont declares, mais ils ne restent au catalogue que
+  // si une image de BIOS PlayStation a ete deposee : le coeur en exige une, et
+  // personne ne peut la distribuer. C'est catalog-prune.js, cote pile, qui les
+  // retranche a l'indexation quand le dossier bios/ est vide — mieux vaut ne
+  // pas les voir que les voir echouer. Saturn et Dreamcast n'ont besoin de
+  // rien et sont toujours la.
+  'psf',
+  'minipsf',
   'ssf',
   'minissf',
   'dsf',

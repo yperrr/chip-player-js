@@ -14,7 +14,7 @@ import autoBind from 'auto-bind';
 // Hors perimetre pour l'instant : psf2 (PlayStation 2), qui demande en plus le
 // systeme de fichiers virtuel psf2fs ; 2sf, gsf, snsf, qsf, ncsf, qui sont
 // d'autres machines encore, chacune avec son emulateur.
-const fileExtensions = ['ssf', 'minissf', 'dsf', 'minidsf'];
+const fileExtensions = ['psf', 'minipsf', 'ssf', 'minissf', 'dsf', 'minidsf'];
 
 const MOUNTPOINT = '/psf';
 
@@ -23,9 +23,35 @@ const TYPE_PSF1 = 0x01;
 const TYPE_SSF = 0x11;
 const TYPE_DSF = 0x12;
 const TYPES_CONNUS = {
+  [TYPE_PSF1]: 'PlayStation',
   [TYPE_SSF]: 'Sega Saturn',
   [TYPE_DSF]: 'Dreamcast',
 };
+
+// Ou trouver les images de BIOS deposees par l'administrateur. Le manifeste
+// est ecrit au demarrage du conteneur par bios-manifest.js, cote stack : un
+// navigateur ne peut pas lister un dossier servi en statique, et deviner le
+// nom du fichier mettrait l'utilisateur en echec sans qu'il sache pourquoi.
+const BIOS_MANIFESTE = '/bios-manifest.json';
+const BIOS_DOSSIER = '/bios/';
+
+// Bornes que psx_init() impose : il s'arrete net si la taille n'est pas une
+// puissance de deux. Un BIOS de PlayStation fait 512 ko.
+const BIOS_TAILLE_MIN = 256 * 1024;
+const BIOS_TAILLE_MAX = 8 * 1024 * 1024;
+
+// Marqueurs cherches dans l'image avant de s'en servir.
+//
+// CE CONTROLE N'EST PAS DU ZELE. Le coeur ne signale pas une image invalide :
+// il la mappe a 0x1FC00000 et part executer ce qu'il y trouve. Si ce n'est pas
+// du code PlayStation, le R3000 tourne sans fin et l'onglet se fige, sans
+// message et sans erreur — on ne peut pas interrompre du wasm depuis
+// JavaScript. Mieux vaut donc refuser une image douteuse que risquer cela.
+const BIOS_MARQUEURS = [
+  'Sony Computer Entertainment',   // ROM PlayStation, zone de licence
+  'PS-X',                          // marqueur present sur plusieurs revisions
+  'System ROM Version',            // banniere du noyau
+];
 
 // Les deux coeurs rendent a cette cadence, sans reglage possible : c'est celle
 // des machines qu'ils simulent.
@@ -72,23 +98,28 @@ const PROFONDEUR_LIB_MAX = 8;
  * de tout autres formats qui portent le meme nom — un .psf de Pivotal Games
  * n'a rien d'un PlayStation Sound Format.
  *
- * CE QUI MANQUE : LA PLAYSTATION
+ * LA PLAYSTATION DEMANDE UNE ROM
  *
- * Saturn et Dreamcast jouent. La PlayStation, non, et ce n'est pas faute de
- * code : le coeur Highly_Experimental exige une image de BIOS Sony, que son
- * auteur ne distribue pas davantage que nous — « The unfortunate dirty secret
- * here is that Sony BIOS is used », dit son Readme, qui range l'emulation de
- * haut niveau au rayon des choses a faire.
+ * Saturn et Dreamcast jouent sans rien reclamer. La PlayStation, non : le
+ * coeur Highly_Experimental exige une image de BIOS Sony, que son auteur ne
+ * distribue pas davantage que nous — « The unfortunate dirty secret here is
+ * that Sony BIOS is used », dit son Readme, qui range l'emulation de haut
+ * niveau au rayon des choses a faire.
  *
- * Le piege merite d'etre nomme, parce qu'il coute cher : sans BIOS, psx_init()
- * rend ZERO, c'est-a-dire son code de SUCCES. Rien n'est initialise, et le
- * R3000 part executer de la memoire vide — l'onglet se fige, sans message et
- * sans erreur. Le shim verifie donc la presence du BIOS lui-meme, et ce
- * lecteur refuse un .psf avant meme d'entrer dans le wasm.
+ * Elle vient donc de l'administrateur, qui depose la sienne dans le dossier
+ * bios/ de la pile. _assurerBios() va la chercher au premier .psf ouvert.
  *
- * La porte reste ouverte : psfx_set_bios() attend une image que l'utilisateur
- * fournirait, celle de sa propre console. C'est a lui de decider, pas au
- * lecteur.
+ * DEUX PIEGES, TOUS DEUX SILENCIEUX ET COUTEUX
+ *
+ * 1. Sans BIOS, psx_init() rend ZERO, c'est-a-dire son code de SUCCES. Rien
+ *    n'est initialise, et le R3000 part executer de la memoire vide.
+ * 2. Avec une MAUVAISE image, meme chose : le coeur la mappe a 0x1FC00000 et
+ *    execute ce qu'il y trouve.
+ *
+ * Dans les deux cas l'onglet se fige, sans message et sans erreur — on ne peut
+ * pas interrompre du wasm depuis JavaScript. D'ou deux garde-fous : le shim
+ * verifie la presence du BIOS avant d'appeler quoi que ce soit, et ce lecteur
+ * controle la vraisemblance de l'image avant de l'installer.
  *
  * LES BIBLIOTHEQUES VOISINES
  *
@@ -136,6 +167,80 @@ export default class PSFPlayer extends Player {
     // cadences quand la sortie tourne plus vite que 44 100 Hz.
     this._capacite = this.bufferSize * 2 + 64;
     this.buf = this.core._malloc(this._capacite * 2 * 2);
+  }
+
+  /**
+   * Charge, verifie et installe l'image de BIOS que reclame la PlayStation.
+   *
+   * L'image vient du dossier ./bios de la pile, servi sous /bios, et le
+   * manifeste ecrit au demarrage du conteneur dit ce qui s'y trouve. On essaie
+   * les images dans l'ordre et l'on retient la premiere qui passe le controle.
+   *
+   * Le resultat est garde : le BIOS s'installe une fois pour la session.
+   */
+  async _assurerBios() {
+    if (this.core._psfx_a_bios()) return;
+
+    let manifeste;
+    try {
+      const r = await fetch(BIOS_MANIFESTE);
+      if (!r.ok) throw Error(String(r.status));
+      manifeste = await r.json();
+    } catch (e) {
+      throw Error('psf : la PlayStation demande une image de BIOS. Deposez-en '
+        + 'une dans le dossier bios/ de la pile, puis redemarrez (voir bios/README.md).');
+    }
+
+    const images = (manifeste && manifeste.images) || [];
+    if (images.length === 0) {
+      throw Error('psf : aucune image de BIOS dans le dossier bios/. '
+        + 'Deposez-y celle de votre PlayStation, puis redemarrez la pile.');
+    }
+
+    const refus = [];
+    for (const image of images) {
+      let octets;
+      try {
+        const r = await fetch(BIOS_DOSSIER + encodeURIComponent(image.nom));
+        if (!r.ok) { refus.push(`${image.nom} : illisible (${r.status})`); continue; }
+        octets = new Uint8Array(await r.arrayBuffer());
+      } catch (e) {
+        refus.push(`${image.nom} : illisible`);
+        continue;
+      }
+
+      const probleme = this._verifierBios(octets);
+      if (probleme) { refus.push(`${image.nom} : ${probleme}`); continue; }
+
+      // Le coeur garde le pointeur : la memoire doit rester a lui pour toute
+      // la duree de la session, on ne la libere donc jamais.
+      const ptr = this.core._malloc(octets.length);
+      this.core.HEAPU8.set(octets, ptr);
+      this.core._psfx_set_bios(ptr, octets.length);
+      if (this.core._psfx_a_bios()) return;
+      refus.push(`${image.nom} : refusee par le moteur`);
+    }
+
+    throw Error('psf : aucune image de BIOS utilisable — ' + refus.join(' ; '));
+  }
+
+  /** Rend null si l'image est plausible, sinon la raison du refus. */
+  _verifierBios(octets) {
+    const n = octets.length;
+    if (n < BIOS_TAILLE_MIN || n > BIOS_TAILLE_MAX) {
+      return `${Math.round(n / 1024)} ko, hors des bornes attendues`;
+    }
+    if (n & (n - 1)) {
+      return `${Math.round(n / 1024)} ko, ce n'est pas une puissance de deux`;
+    }
+    // Recherche des marqueurs sur l'image entiere. Ils ne sont pas tous au
+    // meme endroit selon la revision, et l'image est petite : la balayer
+    // coute moins cher que de parier sur un decalage.
+    const texte = new TextDecoder('latin1').decode(octets);
+    if (!BIOS_MARQUEURS.some(m => texte.includes(m))) {
+      return 'ne ressemble pas a une ROM PlayStation';
+    }
+    return null;
   }
 
   /**
@@ -231,13 +336,13 @@ export default class PSFPlayer extends Player {
     const type = this.core._psfx_type_of
       ? (data.length >= 4 && data[0] === 0x50 && data[1] === 0x53 && data[2] === 0x46 ? data[3] : 0)
       : 0;
-    if (type === TYPE_PSF1 || type === 0x02) {
-      // Message nomme plutot qu'un echec sec : c'est une limite connue, pas un
-      // fichier abime. Et surtout, on refuse AVANT d'entrer dans le wasm —
-      // voir l'en-tete de ce fichier, le coeur PlayStation sans BIOS ne rend
-      // pas la main.
-      throw Error('psf : la PlayStation demande une image de BIOS Sony, que ce '
-        + 'lecteur n\'embarque pas (voir src/psf.provenance.json)');
+    if (type === 0x02) {
+      throw Error('psf : la PlayStation 2 (PSF2) n\'est pas prise en charge par ce moteur');
+    }
+    if (type === TYPE_PSF1) {
+      // On s'assure du BIOS AVANT d'entrer dans le wasm. Voir l'en-tete de ce
+      // fichier : le coeur PlayStation sans BIOS valable ne rend pas la main.
+      await this._assurerBios();
     }
     if (!TYPES_CONNUS[type]) {
       throw Error(`psf : type 0x${type.toString(16)} non pris en charge par ce moteur`);
