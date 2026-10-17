@@ -49,6 +49,12 @@ const MOTEURS = [
     correctif: 'reconstruire avec scripts/emscripten/libkss/ en completant EXPORTED_FUNCTIONS',
   },
   {
+    nom: 'psf',
+    colle: 'src/psf.js',
+    fichiers: ['src/players/PSFPlayer.js'],
+    correctif: 'reconstruire avec scripts/emscripten/psf/ en completant EXPORTED_FUNCTIONS',
+  },
+  {
     nom: 'chip-core',
     colle: 'src/chip-core.js',
     defaut: true,

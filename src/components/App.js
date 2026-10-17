@@ -33,6 +33,7 @@ import Sequencer, { NUM_REPEAT_MODES, NUM_SHUFFLE_MODES, REPEAT_OFF, SHUFFLE_OFF
 
 import GMEPlayer from '../players/GMEPlayer';
 import KSSPlayer from '../players/KSSPlayer';
+import PSFPlayer from '../players/PSFPlayer';
 import MIDIPlayer from '../players/MIDIPlayer';
 import V2MPlayer from '../players/V2MPlayer';
 import XMPPlayer from '../players/XMPPlayer';
@@ -205,6 +206,10 @@ class App extends React.Component {
       XMPPlayer,
       V2MPlayer,
       N64Player,
+      // La famille *Sound Format* : PlayStation, Saturn, Dreamcast. Place
+      // avant VGMStreamPlayer, qui revendique « psf », « ssf » et « dsf »
+      // pour de tout autres formats portant le meme nom.
+      PSFPlayer,
       MDXPlayer,
       VGMPlayer,
       SIDPlayer,

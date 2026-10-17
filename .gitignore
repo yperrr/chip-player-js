@@ -47,6 +47,11 @@ public/sitemap*.xml
 !/src/libkss.js
 !/src/libkss.wasm
 
+# Moteur de la famille *SF (psf, ssf, dsf), meme fonctionnement
+# (voir src/psf.provenance.json).
+!/src/psf.js
+!/src/psf.wasm
+
 # Passerelle de configuration Firebase : elle ne contient AUCUNE valeur, la
 # vraie configuration arrive a l'execution (window.__chipFirebaseConfig) ou par
 # REACT_APP_FIREBASE_CONFIG. Sans ce fichier, le build echoue.
