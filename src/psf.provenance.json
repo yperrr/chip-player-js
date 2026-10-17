@@ -23,7 +23,7 @@
   },
   "wasm": {
     "fichier": "src/psf.wasm",
-    "octets": 774208,
-    "sha256": "1de53a7f79e2d2e55d6c6584224b472960843d8934e8a60c37eb3bc672ebc89b"
+    "octets": 774676,
+    "sha256": "f44562831f1b73d279dd48839d548b8923b6d616ee5e4c5111df18d8f7c8e224"
   }
 }

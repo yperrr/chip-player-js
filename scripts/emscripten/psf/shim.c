@@ -47,6 +47,12 @@ typedef struct {
   void *state;       /* état du cœur, alloué selon sa taille annoncée */
   uint8_t *prog;     /* programme accumulé, pour Saturn et Dreamcast */
   size_t prog_size;
+  /* Accumulation PlayStation : en-tete du PREMIER fichier vu, et union des
+   * segments de toute la chaine. Voir cb_load_psf1(). */
+  uint8_t psf1_entete[0x800];
+  int psf1_vide;     /* 1 tant qu'aucun fichier n'a ete vu */
+  uint8_t *psf1_ram;
+  uint32_t psf1_debut, psf1_taille;
   char *tags;        /* « nom=valeur\n » concaténés */
   size_t tags_len, tags_cap;
   int ouvert;
@@ -96,26 +102,83 @@ static int cb_info(void *ctx, const char *nom, const char *valeur) {
   return 0;
 }
 
-/* ---------------------------------------------------------- chargement PS1 */
-
-static int cb_load_psf1(void *ctx, const uint8_t *exe, size_t exe_size,
-                        const uint8_t *reserved, size_t reserved_size) {
-  (void)ctx; (void)reserved; (void)reserved_size;
-  if (exe_size < 0x800) return -1;
-  /* Chaque maillon de la chaîne _lib est un PS-X EXE complet, avec sa propre
-   * adresse de chargement : le cœur les empile lui-même, dans l'ordre où
-   * psflib nous les donne. */
-  return psx_upload_psxexe(G.state, (void *)exe, (uint32_t)exe_size);
-}
-
-/* ------------------------------------------------- chargement Saturn / DC */
-
+/* Lecture et ecriture d'entiers 32 bits petit-boutistes, communes aux deux
+ * familles de chargeurs. */
 static uint32_t lire32(const uint8_t *p) {
   return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 static void ecrire32(uint8_t *p, uint32_t v) {
   p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
 }
+
+/* ---------------------------------------------------------- chargement PS1 */
+
+/*
+ * Les maillons de la chaine PlayStation se FUSIONNENT, ils ne s'empilent pas.
+ *
+ * On pourrait croire qu'il suffit d'appeler psx_upload_psxexe() sur chaque
+ * fichier que psflib livre. C'est faux, et le fichier le plus banal le montre :
+ * « 102 Hope.psf », de Wild Arms, se decomprime en EXACTEMENT 2048 octets,
+ * c'est-a-dire un en-tete PS-X EXE et rien derriere. Tout son contenu vit dans
+ * les trois .psflib voisins ; lui ne fait que designer le point d'entree. Or
+ *
+ *     if(size < 0x801) return -1;
+ *
+ * est la premiere chose que fait psx_upload_psxexe : un en-tete seul est
+ * refuse, et toute la chaine echoue avec lui.
+ *
+ * On accumule donc, comme pour la Saturn : chaque fichier depose sa section
+ * de texte a SON adresse, les plus recents recouvrant les plus anciens, et
+ * l'on televerse une seule fois a la fin. L'en-tete retenu est celui du
+ * PREMIER fichier vu — c'est-a-dire la bibliotheque la plus profonde, puisque
+ * psflib descend la chaine avant de remonter — car c'est de lui que viennent
+ * le compteur ordinal et la pile de depart.
+ */
+static int cb_load_psf1(void *ctx, const uint8_t *exe, size_t exe_size,
+                        const uint8_t *reserved, size_t reserved_size) {
+  (void)ctx; (void)reserved; (void)reserved_size;
+  if (exe_size < 0x800) return -1;
+  if (memcmp(exe, "PS-X EXE", 8)) return -1;
+
+  if (G.psf1_vide) {
+    memcpy(G.psf1_entete, exe, 0x800);
+    G.psf1_vide = 0;
+  }
+
+  uint32_t debut = lire32(exe + 0x18);
+  uint32_t taille = (uint32_t)(exe_size - 0x800);
+  uint32_t declaree = lire32(exe + 0x1C);
+  if (declaree < taille) taille = declaree;
+  if (taille == 0) return 0;   /* en-tete seul : rien a superposer */
+
+  if (!G.psf1_ram) {
+    G.psf1_ram = malloc(taille);
+    if (!G.psf1_ram) return -1;
+    memcpy(G.psf1_ram, exe + 0x800, taille);
+    G.psf1_debut = debut;
+    G.psf1_taille = taille;
+    return 0;
+  }
+
+  uint32_t fin_a = G.psf1_debut + G.psf1_taille;
+  uint32_t fin_b = debut + taille;
+  uint32_t nouveau_debut = G.psf1_debut < debut ? G.psf1_debut : debut;
+  uint32_t nouvelle_fin = fin_a > fin_b ? fin_a : fin_b;
+  size_t n = nouvelle_fin - nouveau_debut;
+
+  uint8_t *fusion = calloc(1, n);
+  if (!fusion) return -1;
+  memcpy(fusion + (G.psf1_debut - nouveau_debut), G.psf1_ram, G.psf1_taille);
+  memcpy(fusion + (debut - nouveau_debut), exe + 0x800, taille);
+  free(G.psf1_ram);
+  G.psf1_ram = fusion;
+  G.psf1_debut = nouveau_debut;
+  G.psf1_taille = (uint32_t)n;
+  return 0;
+}
+
+/* ------------------------------------------------- chargement Saturn / DC */
+
 
 /*
  * Saturn et Dreamcast ne s'empilent pas comme la PlayStation.
@@ -164,6 +227,9 @@ static int cb_load_sdsf(void *ctx, const uint8_t *exe, size_t exe_size,
 void psfx_close(void) {
   free(G.state); G.state = NULL;
   free(G.prog); G.prog = NULL; G.prog_size = 0;
+  free(G.psf1_ram); G.psf1_ram = NULL;
+  G.psf1_debut = G.psf1_taille = 0;
+  G.psf1_vide = 1;
   free(G.tags); G.tags = NULL; G.tags_len = G.tags_cap = 0;
   G.ouvert = 0;
   G.type = 0;
@@ -217,7 +283,23 @@ int psfx_open(const char *chemin, int type) {
                    cb_info, NULL, 0, NULL, NULL);
   if (r < 0) { psfx_close(); return -4; }
 
-  if (type != PSFX_PSF1) {
+  if (type == PSFX_PSF1) {
+    /* Un seul televersement, avec l'union des segments de toute la chaine.
+     * L'en-tete est celui du premier fichier vu — donc son point d'entree et
+     * sa pile — mais l'adresse et la taille de la section de texte sont
+     * celles du bloc fusionne. */
+    if (G.psf1_vide || !G.psf1_ram || G.psf1_taille == 0) { psfx_close(); return -7; }
+    size_t n = (size_t)0x800 + G.psf1_taille;
+    uint8_t *image = malloc(n);
+    if (!image) { psfx_close(); return -2; }
+    memcpy(image, G.psf1_entete, 0x800);
+    ecrire32(image + 0x18, G.psf1_debut);
+    ecrire32(image + 0x1C, G.psf1_taille);
+    memcpy(image + 0x800, G.psf1_ram, G.psf1_taille);
+    int rc = psx_upload_psxexe(G.state, image, (uint32_t)n);
+    free(image);
+    if (rc != 0) { psfx_close(); return -8; }
+  } else {
     if (G.prog_size < 4) { psfx_close(); return -5; }
     if (sega_upload_program(G.state, G.prog, (uint32_t)G.prog_size) != 0) {
       psfx_close();
