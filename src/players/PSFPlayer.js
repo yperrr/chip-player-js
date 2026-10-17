@@ -40,18 +40,26 @@ const BIOS_DOSSIER = '/bios/';
 const BIOS_TAILLE_MIN = 256 * 1024;
 const BIOS_TAILLE_MAX = 8 * 1024 * 1024;
 
-// Marqueurs cherches dans l'image avant de s'en servir.
+// CE QU'IL FAUT : UNE IMAGE « HE BIOS », PAS UN BIOS DE PLAYSTATION
 //
-// CE CONTROLE N'EST PAS DU ZELE. Le coeur ne signale pas une image invalide :
-// il la mappe a 0x1FC00000 et part executer ce qu'il y trouve. Si ce n'est pas
-// du code PlayStation, le R3000 tourne sans fin et l'onglet se fige, sans
-// message et sans erreur — on ne peut pas interrompre du wasm depuis
-// JavaScript. Mieux vaut donc refuser une image douteuse que risquer cela.
-const BIOS_MARQUEURS = [
-  'Sony Computer Entertainment',   // ROM PlayStation, zone de licence
-  'PS-X',                          // marqueur present sur plusieurs revisions
-  'System ROM Version',            // banniere du noyau
-];
+// Highly_Experimental ne se contente pas d'une ROM de console : il lit des
+// variables de configuration DANS l'image, a l'offset 0x80, derriere une
+// banniere qui les annonce. psx_init() fait
+//
+//     if(bios_getenv("ps1preboot", s, sizeof(s))) psx_hang("getenv failed");
+//
+// et psx_hang() est « for(;;) { *((volatile char*)0) = *message; } ». Une
+// image sans cette banniere ne donne donc pas une erreur mais une BOUCLE
+// INFINIE, avant meme que le moteur ait commence — l'onglet se fige, sans
+// message, et l'on ne peut pas interrompre du wasm depuis JavaScript.
+//
+// On verifie donc EXACTEMENT ce que le coeur exigera, au meme endroit. Ce
+// n'est plus une ressemblance, c'est la condition elle-meme.
+//
+// Ces images se fabriquent avec l'outil mkhebios du depot amont, a partir d'un
+// BIOS de PlayStation 2 : voir bios/README.md cote pile.
+const BIOS_BANNIERE = 'Highly Experimental';
+const BIOS_BANNIERE_OFFSET = 0x80;
 
 // Les deux coeurs rendent a cette cadence, sans reglage possible : c'est celle
 // des machines qu'ils simulent.
@@ -233,12 +241,10 @@ export default class PSFPlayer extends Player {
     if (n & (n - 1)) {
       return `${Math.round(n / 1024)} ko, ce n'est pas une puissance de deux`;
     }
-    // Recherche des marqueurs sur l'image entiere. Ils ne sont pas tous au
-    // meme endroit selon la revision, et l'image est petite : la balayer
-    // coute moins cher que de parier sur un decalage.
-    const texte = new TextDecoder('latin1').decode(octets);
-    if (!BIOS_MARQUEURS.some(m => texte.includes(m))) {
-      return 'ne ressemble pas a une ROM PlayStation';
+    const zone = new TextDecoder('latin1').decode(
+      octets.subarray(BIOS_BANNIERE_OFFSET, BIOS_BANNIERE_OFFSET + BIOS_BANNIERE.length));
+    if (zone !== BIOS_BANNIERE) {
+      return 'ce n\'est pas une image HE BIOS (un BIOS PlayStation ordinaire ne convient pas)';
     }
     return null;
   }
