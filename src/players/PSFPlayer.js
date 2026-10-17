@@ -61,6 +61,15 @@ const BIOS_TAILLE_MAX = 8 * 1024 * 1024;
 const BIOS_BANNIERE = 'Highly Experimental';
 const BIOS_BANNIERE_OFFSET = 0x80;
 
+// L'autre forme acceptee : un BIOS de PlayStation 2 brut, que mkhebios
+// convertit a la volee. Exactement 4 Mo, et les octets que le script de
+// conversion attend aux deux endroits qu'il corrige.
+const BIOS_PS2_TAILLE = 4 * 1024 * 1024;
+const BIOS_PS2_SIGNATURES = [
+  { offset: 0x52360, octets: 'dc34f10f07000424' },            // preamorçage PS1
+  { offset: 0x4A448, octets: '0000000009f8400021206002' },    // preamorçage PS2
+];
+
 // Les deux coeurs rendent a cette cadence, sans reglage possible : c'est celle
 // des machines qu'ils simulent.
 const TAUX_MOTEUR = 44100;
@@ -224,6 +233,18 @@ export default class PSFPlayer extends Player {
       // la duree de la session, on ne la libere donc jamais.
       const ptr = this.core._malloc(octets.length);
       this.core.HEAPU8.set(octets, ptr);
+
+      if (image.type === 'ps2') {
+        // Une ROM de PlayStation 2 : mkhebios la depouille et en tire l'image
+        // que le coeur attend. L'operation prend un instant et ne se fait
+        // qu'une fois par session.
+        const taille = this.core._psfx_set_bios_ps2(ptr, octets.length);
+        if (taille > 0 && this.core._psfx_a_bios()) return;
+        this.core._free(ptr);
+        refus.push(`${image.nom} : conversion du BIOS PlayStation 2 refusee par mkhebios`);
+        continue;
+      }
+
       this.core._psfx_set_bios(ptr, octets.length);
       if (this.core._psfx_a_bios()) return;
       refus.push(`${image.nom} : refusee par le moteur`);
@@ -243,10 +264,28 @@ export default class PSFPlayer extends Player {
     }
     const zone = new TextDecoder('latin1').decode(
       octets.subarray(BIOS_BANNIERE_OFFSET, BIOS_BANNIERE_OFFSET + BIOS_BANNIERE.length));
-    if (zone !== BIOS_BANNIERE) {
-      return 'ce n\'est pas une image HE BIOS (un BIOS PlayStation ordinaire ne convient pas)';
-    }
-    return null;
+    if (zone === BIOS_BANNIERE) return null;
+    if (this._estBiosPs2(octets)) return null;
+    return 'ni une image HE BIOS, ni un BIOS PlayStation 2 convertible';
+  }
+
+  /**
+   * Un BIOS de PlayStation 2 que mkhebios saura convertir ?
+   *
+   * Les deux signatures sont la condition EXACTE de reussite : le script de
+   * conversion corrige ces deux endroits et compare les octets avant d'ecrire,
+   * renonçant en cas d'ecart. Les verifier ici, c'est donc savoir d'avance si
+   * la conversion aboutira — et non s'en remettre a l'essai.
+   */
+  _estBiosPs2(octets) {
+    if (octets.length !== BIOS_PS2_TAILLE) return false;
+    return BIOS_PS2_SIGNATURES.every(({ offset, octets: attendu }) => {
+      let hex = '';
+      for (let i = 0; i < attendu.length / 2; i++) {
+        hex += octets[offset + i].toString(16).padStart(2, '0');
+      }
+      return hex === attendu;
+    });
   }
 
   /**

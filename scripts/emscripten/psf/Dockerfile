@@ -78,16 +78,21 @@ RUN cd /build \
       -I/src/he/Core --use-port=zlib \
       /src/he/Core/psx.c /src/he/Core/bios.c /src/he/Core/iop.c \
       /src/he/Core/ioptimer.c /src/he/Core/r3000.c /src/he/Core/spu.c \
-      /src/he/Core/spucore.c /src/he/Core/vfs.c \
+      /src/he/Core/spucore.c /src/he/Core/vfs.c /src/he/Core/mkhebios.c \
  && echo "Highly_Experimental compile"
 
 # r3000asm.c et r3000dis.c sont laisses de cote, bien qu'ils figurent dans le
 # fichier projet : ce sont l'assembleur et le desassembleur du R3000, outils de
 # mise au point dont un lecteur n'a pas l'usage. Le premier ne compile
 # d'ailleurs pas tel quel — il appelle tolower() sans inclure <ctype.h>, ce que
-# clang refuse depuis C99. mkhebios.c est ecarte pour la meme raison d'usage :
-# il fabrique un BIOS a partir d'une image PlayStation 2, et le PSF2 n'est pas
-# du perimetre.
+# clang refuse depuis C99.
+#
+# mkhebios.c, EN REVANCHE, est bien compile. Ce n'est pas un outil annexe : il
+# fabrique, a partir d'un BIOS de PlayStation 2, la seule forme d'image que le
+# coeur accepte — celle qui porte la banniere « Highly Experimental » et les
+# variables de preamorçage. Sans lui, l'utilisateur devrait produire ce fichier
+# a la main avec un outil tiers ; avec lui, il depose sa ROM et la pile s'en
+# charge.
 
 # yam.c, hors Windows, fait de __fastcall un __attribute__((regparm(3))) :
 # une convention de passage d'arguments par registres propre au x86, que clang
@@ -128,7 +133,7 @@ RUN cd /build \
       -s ENVIRONMENT=web \
       -s ALLOW_MEMORY_GROWTH=1 \
       -s FORCE_FILESYSTEM=1 \
-      -s EXPORTED_FUNCTIONS="['_malloc','_free','_psfx_open','_psfx_close','_psfx_render','_psfx_tags','_psfx_sample_rate','_psfx_type_of','_psfx_set_bios','_psfx_a_bios']" \
+      -s EXPORTED_FUNCTIONS="['_malloc','_free','_psfx_open','_psfx_close','_psfx_render','_psfx_tags','_psfx_sample_rate','_psfx_type_of','_psfx_set_bios','_psfx_set_bios_ps2','_psfx_a_bios']" \
       -s EXPORTED_RUNTIME_METHODS="['HEAP8','HEAPU8','HEAP16','HEAP32','HEAPU32','HEAPF32','UTF8ToString','stringToUTF8','lengthBytesUTF8','getValue','setValue','FS']"
 
 FROM scratch AS artifacts

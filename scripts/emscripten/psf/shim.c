@@ -32,6 +32,7 @@
 #include "psflib.h"
 #include "psx.h"
 #include "bios.h"
+#include "mkhebios.h"
 #include "sega.h"
 
 #define PSFX_PSF1 0x01
@@ -270,6 +271,29 @@ void psfx_set_bios(uint8_t *image, int taille) {
 }
 
 int psfx_a_bios(void) { return bios_get_image_native() && bios_get_imagesize() ? 1 : 0; }
+
+/*
+ * Fabrique l'image HE a partir d'un BIOS de PlayStation 2, et l'installe.
+ *
+ * C'est la voie praticable pour l'utilisateur ordinaire : le coeur n'accepte
+ * que des images portant la banniere « Highly Experimental » et ses variables
+ * de preamorçage, qui ne se trouvent dans aucune ROM de console. mkhebios les
+ * fabrique — il depouille le BIOS PS2 module par module pour n'en garder que
+ * ce qui sert au son, PlayStation 1 comprise, applique deux correctifs et
+ * ecrit la zone de configuration a l'offset 0x80.
+ *
+ * Entree : exactement 4 Mo. Sortie : 512 Ko. Rend la taille produite, ou -1.
+ *
+ * Le tampon rendu par mkhebios n'est PAS libere : bios_set_image en conserve
+ * le pointeur pour toute la session.
+ */
+int psfx_set_bios_ps2(uint8_t *ps2, int taille) {
+  int n = taille;
+  void *image = mkhebios_create(ps2, &n);
+  if (!image) return -1;
+  bios_set_image((uint8_t *)image, (uint32_t)n);
+  return n;
+}
 
 int psfx_sample_rate(void) { return PSFX_RATE; }
 
