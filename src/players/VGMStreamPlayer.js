@@ -54,6 +54,7 @@ export default class VGMStreamPlayer extends Player {
     this.lib = 0;            // libvgmstream_t*
     this._reste = 0;         // echantillons restants dans le bloc decode
     this._prec = null;       // derniere trame du bloc precedent, indice -1
+    this._termine = false;  // fin deja signalee ?
     this._pos = 0;           // position fractionnaire dans ce bloc
     this._bufPtr = 0;
     this.cheminFs = null;
@@ -171,6 +172,7 @@ export default class VGMStreamPlayer extends Player {
       throw Error('vgmstream: format de sortie non gere (' + sfmt + ')');
     }
     this._reste = 0; this._pos = 0; this._bufPtr = 0; this._prec = null;
+    this._termine = false;
 
     const codec = this._chaine(fmt + FMT_CODEC_NAME, 128);
     const meta = this._chaine(fmt + FMT_META_NAME, 128);
@@ -254,7 +256,10 @@ export default class VGMStreamPlayer extends Player {
         this._bufPtr = c.getValue(dec + DEC_BUF, '*');
         this._reste = c.getValue(dec + DEC_BUF_SAMPLES, 'i32');
         if (c.getValue(dec + DEC_DONE, 'i8')) fini = true;
-        if (this._reste <= 0) break;
+        // Plus rien a rendre : c'est une fin, et il faut le DIRE. Sortir
+        // sans lever ce drapeau laissait le morceau fige sur sa derniere
+        // position, a emettre du silence sans jamais rendre la main.
+        if (this._reste <= 0) { fini = true; break; }
         // Un bloc trop court pour contenir la position reportee : on repart de
         // son debut plutot que de sauter en avant.
         if (this._pos >= this._reste - 1) this._pos = 0;
@@ -274,7 +279,20 @@ export default class VGMStreamPlayer extends Player {
     if (ecrits < attendus) {
       for (let ch = 0; ch < channels.length; ch++) channels[ch].fill(0, ecrits);
     }
-    if (fini && ecrits === 0) this.handleSongEnd();
+    // La fin se signale des qu'elle est connue, et non seulement quand le
+    // tampon repart vide.
+    //
+    // CE QUE CETTE LIGNE VALAIT AVANT. Releve sur un .adx de 4,26 s en
+    // production : a 4 260 ms la position se figeait, la crete tombait a
+    // 0,0007, et handleSongEnd n'etait JAMAIS appele — ni avance au morceau
+    // suivant, ni ejection. Le lecteur restait charge, muet, indefiniment.
+    // Le decodeur avait pourtant leve son drapeau « done » sur un tampon
+    // qu'il avait rempli en partie, et la condition « ecrits === 0 » rejetait
+    // ce cas-la, le plus courant de tous.
+    if (fini && !this._termine) {
+      this._termine = true;
+      this.handleSongEnd();
+    }
   }
 
   getMetadata() { return this.metadata || {}; }
@@ -303,6 +321,7 @@ export default class VGMStreamPlayer extends Player {
     this._reste = 0;
     this._pos = 0;
     this._prec = null;
+    this._termine = false;
   }
 
   getNumSubtunes() { return this._nbSubtunes; }

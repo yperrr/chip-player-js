@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 import debounce from 'lodash/debounce';
-import { getAuth, onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithCustomToken, signInWithPopup, signOut, GoogleAuthProvider } from 'firebase/auth';
 import { initializeApp as firebaseInitializeApp } from 'firebase/app';
 import firebaseConfig from '../config/firebaseConfig';
 import { API_BASE, CATALOG_PREFIX } from '../config';
@@ -88,6 +88,26 @@ const UserProvider = ({ children }) => {
       console.log('Firebase auth state changed, user:', user);
       setLoadingUser(false);
     });
+
+    // Prise offerte a la greffe de connexion transparente de la pile
+    // auto-hebergee (frontend/sso-login.js).
+    //
+    // POURQUOI. La greffe echangeait son jeton contre une session en chargeant
+    // une SECONDE copie du SDK Firebase depuis gstatic.com, puis en rechargeant
+    // la page pour que le lecteur relise la session au demarrage. Deux
+    // fragilites, et toutes deux se paient precisement la ou l'on en a le plus
+    // besoin : sur un poste d'entreprise, le CDN est souvent bloque ; en
+    // navigation privee, la session ecrite par l'autre copie peut ne pas
+    // survivre au rechargement. Dans les deux cas, la connexion echoue en
+    // silence.
+    //
+    // Ici, c'est l'instance du lecteur lui-meme qui prend le jeton :
+    // onAuthStateChanged s'en charge, l'interface se met a jour, et il n'y a
+    // ni telechargement ni rechargement.
+    window.chipAuth = {
+      signInWithToken: (jeton) => signInWithCustomToken(auth, jeton),
+      isSignedIn: () => !!auth.currentUser,
+    };
   }, []);
 
   // Copy favorites to localStorage whenever they change, so they persist across page reloads.
