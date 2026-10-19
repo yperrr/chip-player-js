@@ -484,6 +484,20 @@ const STRATEGIES = {
   },
 };
 
+/**
+ * Enveloppe des donnees structurees dans leur balise.
+ *
+ * __SCHEMA_JSON_LD__ est injecte TEL QUEL dans le gabarit de page : ce qu'on
+ * met ici atterrit dans le HTML sans transformation. Rendre le JSON nu, comme
+ * le faisaient deux des trois sorties de resolveDirectoryMetadata(), le fait
+ * donc AFFICHER — une ligne d'accolades en travers de l'en-tete, par-dessus le
+ * titre et les liens. C'est ce qu'on voyait sur les pages de dossier servies
+ * par la branche de repli.
+ */
+function envelopperJsonLd(schema) {
+  return `<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+}
+
 function buildBreadcrumbJsonLd(pathSegments) {
   let currentPath = '';
   const itemListElement = [
@@ -614,7 +628,7 @@ function resolveDirectoryMetadata(rawBrowsePath, options = {}) {
         'Browse over 380,000 video game music and chiptune tracks across 31,000 directories. Listen to SPC, SID, NSF, VGM, MIDI, MOD and more.',
       url: SITE_URL + '/browse',
       image: SITE_URL + '/chip-player-1200x640.png',
-      schemaJsonLd: JSON.stringify(buildBreadcrumbJsonLd([])),
+      schemaJsonLd: envelopperJsonLd(buildBreadcrumbJsonLd([])),
       noscriptContent:
         '<div class="seo-crawler-content"><h1>Browse Music Archives</h1><p>Browse over 380,000 tracks.</p></div>',
     };
@@ -636,7 +650,7 @@ function resolveDirectoryMetadata(rawBrowsePath, options = {}) {
       description: `Browse chiptune and video game music tracks in ${fallbackTitle}.`,
       url: `${SITE_URL}/browse/${normalizedPath.split('/').map(encodeURIComponent).join('/')}`,
       image: SITE_URL + '/chip-player-1200x640.png',
-      schemaJsonLd: JSON.stringify(buildBreadcrumbJsonLd(segments)),
+      schemaJsonLd: envelopperJsonLd(buildBreadcrumbJsonLd(segments)),
       noscriptContent: '',
     };
     directoryMetaCache.set(cacheKey, result);
@@ -681,7 +695,7 @@ function resolveDirectoryMetadata(rawBrowsePath, options = {}) {
   const collectionSchema = buildCollectionPageJsonLd(title, description, canonicalUrl, image);
   const combinedSchema = [breadcrumbSchema, collectionSchema];
 
-  const schemaJsonLd = `<script type="application/ld+json">${JSON.stringify(combinedSchema)}</script>`;
+  const schemaJsonLd = envelopperJsonLd(combinedSchema);
   const noscriptContent = buildNoscriptHtml(
     title,
     description,
