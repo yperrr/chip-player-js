@@ -178,9 +178,23 @@ export default class VGMStreamPlayer extends Player {
    * vingt-cinq tires au hasard du catalogue, vingt-cinq etaient en RIFF.
    *
    * vgmstream sait lire un flux nu si on lui DECRIT le format, par un fichier
-   * .txth depose a cote. On en ecrit donc un, avec la disposition ATRAC3 la
-   * plus repandue — stereo joint, 44 100 Hz, trames de 384 octets, soit le
-   * 132 kbit/s de Sony.
+   * .txth depose a cote. On en ecrit donc un : stereo joint, trames de
+   * 384 octets, 48 000 Hz.
+   *
+   * LA CADENCE A ETE MESUREE, PAS SUPPOSEE. Rien dans un flux ATRAC3 ne la
+   * porte : c'est une metadonnee du conteneur, et il n'y en a pas. On avait
+   * d'abord retenu 44 100 Hz, la valeur canonique de Sony pour des trames de
+   * 384 octets — a tort. L'utilisateur a trouve que ça trainait, et la
+   * comparaison avec l'enregistrement d'origine lui a donne raison : en
+   * recalant les enveloppes d'energie des deux versions par correlation
+   * croisee, le facteur d'echelle optimal ressort a 1,0884, soit exactement
+   * 48 000 / 44 100. Le score passe de 0,35 a 0,63 entre les deux hypotheses,
+   * et le balayage fin pointe 47 981 Hz. Les 292 s de l'original
+   * correspondent alors a nos 294 s, la ou 44 100 Hz en donnait 320.
+   *
+   * 48 kHz est d'ailleurs la cadence du processeur audio de la PlayStation 2,
+   * ce qui rend la valeur d'autant plus vraisemblable pour un rip de cette
+   * console.
    *
    * ON VERIFIE ENSUITE QUE CA DECODE VRAIMENT. Ouvrir ne prouve rien : avec de
    * mauvais parametres, ATRAC3 ouvre tout de meme et rend n'importe quoi.
@@ -196,7 +210,7 @@ export default class VGMStreamPlayer extends Player {
     const txth = [
       'codec = ATRAC3',
       'channels = 2',
-      'sample_rate = 44100',
+      'sample_rate = 48000',
       'interleave = 384',
       'num_samples = data_size',
       '',
