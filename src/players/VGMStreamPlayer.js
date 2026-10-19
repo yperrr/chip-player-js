@@ -55,9 +55,11 @@ export default class VGMStreamPlayer extends Player {
     this._reste = 0;         // echantillons restants dans le bloc decode
     this._prec = null;       // derniere trame du bloc precedent, indice -1
     this._termine = false;  // fin deja signalee ?
+    this._surPlace = 0;      // tampons consecutifs sans progression
     this._pos = 0;           // position fractionnaire dans ce bloc
     this._bufPtr = 0;
     this.cheminFs = null;
+    this.cheminTxth = null;
     this._subtune = 0;
     this._nbSubtunes = 1;
     this._dureeMs = 0;
@@ -97,6 +99,10 @@ export default class VGMStreamPlayer extends Player {
     if (this.lib) {
       this.core._libvgmstream_free(this.lib);
       this.lib = 0;
+    }
+    if (this.cheminTxth) {
+      try { this.core.FS.unlink(this.cheminTxth); } catch (e) { /* deja parti */ }
+      this.cheminTxth = null;
     }
     if (this.cheminFs) {
       try { this.core.FS.unlink(this.cheminFs); } catch (e) { /* deja parti */ }
@@ -140,6 +146,10 @@ export default class VGMStreamPlayer extends Player {
     this.core._libstreamfile_close(libsf);
 
     if (!this.lib) {
+      this.lib = this._tenterAtrac3Nu(nom);
+    }
+
+    if (!this.lib) {
       this._nettoyer();
       throw Error('vgmstream: format non reconnu');
     }
@@ -154,6 +164,92 @@ export default class VGMStreamPlayer extends Player {
     this.resolveParamValues(persistedSettings);
     this.resume();
     this.emit('playerStateUpdate', { ...this.getBasePlayerState(), isStopped: false });
+  }
+
+  /**
+   * Dernier recours pour un ATRAC3 sans conteneur.
+   *
+   * Certains rips de PlayStation 2 livrent le flux ATRAC3 NU, sans en-tete
+   * RIFF : vgmstream n'a alors rien a reconnaitre et refuse le fichier. Releve
+   * sur « Playstation 2/Kingdom Hearts II » : les trois pistes d'Utada Hikaru
+   * commencent par a2 00 03 ae, partagent leurs seize premiers octets d'un
+   * morceau a l'autre, et n'ont aucun fichier descripteur a cote. Les .at3 de
+   * PSP, eux, sont de vrais RIFF/WAVE et passent sans rien faire : sur
+   * vingt-cinq tires au hasard du catalogue, vingt-cinq etaient en RIFF.
+   *
+   * vgmstream sait lire un flux nu si on lui DECRIT le format, par un fichier
+   * .txth depose a cote. On en ecrit donc un, avec la disposition ATRAC3 la
+   * plus repandue — stereo joint, 44 100 Hz, trames de 384 octets, soit le
+   * 132 kbit/s de Sony.
+   *
+   * ON VERIFIE ENSUITE QUE CA DECODE VRAIMENT. Ouvrir ne prouve rien : avec de
+   * mauvais parametres, ATRAC3 ouvre tout de meme et rend n'importe quoi.
+   * Mesure a l'appui — en 192 octets par trame, le meme fichier sort une crete
+   * de 11,97, douze fois la pleine echelle, c'est-a-dire du charabia ; en 304,
+   * du silence ; en 384, une crete de 0,46 et une correlation de 0,997 entre
+   * echantillons voisins, signature d'un son tonal. On rejette donc tout
+   * decodage dont l'amplitude sort des clous.
+   */
+  _tenterAtrac3Nu(nom) {
+    if (!/\.(at3|aa3|oma)$/i.test(nom)) return 0;
+    const c = this.core;
+    const txth = [
+      'codec = ATRAC3',
+      'channels = 2',
+      'sample_rate = 44100',
+      'interleave = 384',
+      'num_samples = data_size',
+      '',
+    ].join('\n');
+    this.cheminTxth = this.cheminFs + '.txth';
+    try {
+      c.FS.writeFile(this.cheminTxth, new TextEncoder().encode(txth));
+    } catch (e) {
+      this.cheminTxth = null;
+      return 0;
+    }
+
+    const ptr = c._malloc(this.cheminFs.length + 1);
+    c.stringToUTF8(this.cheminFs, ptr, this.cheminFs.length + 1);
+    const sf = c._libstreamfile_open_from_stdio(ptr);
+    c._free(ptr);
+    if (!sf) return 0;
+    const lib = c._libvgmstream_create(sf, this._subtune + 1, 0);
+    c._libstreamfile_close(sf);
+    if (!lib) return 0;
+
+    if (!this._decodageSain(lib)) {
+      c._libvgmstream_free(lib);
+      return 0;
+    }
+    c._libvgmstream_seek(lib, BigInt(0));
+    return lib;
+  }
+
+  /** Les premiers blocs tiennent-ils dans l'echelle ? */
+  _decodageSain(lib) {
+    const c = this.core;
+    const fmt = c.getValue(lib + LIB_FORMAT_PTR, '*');
+    if (!fmt) return false;
+    const nCanaux = c.getValue(fmt + FMT_CHANNELS, 'i32') || 1;
+    const estFloat = c.getValue(fmt + FMT_SAMPLE_FORMAT, 'i32') === SFMT_FLOAT;
+    let crete = 0;
+    for (let i = 0; i < 24; i++) {
+      if (c._libvgmstream_render(lib) < 0) break;
+      const dec = c.getValue(lib + LIB_DECODER_PTR, '*');
+      const buf = c.getValue(dec + DEC_BUF, '*');
+      const n = c.getValue(dec + DEC_BUF_SAMPLES, 'i32');
+      if (n <= 0) break;
+      for (let k = 0; k < n; k++) {
+        const v = estFloat ? c.HEAPF32[(buf >> 2) + k * nCanaux]
+                           : c.HEAP16[(buf >> 1) + k * nCanaux] / 32768;
+        const a = Math.abs(v);
+        if (a > crete) crete = a;
+      }
+    }
+    // Deux fois la pleine echelle laisse de la marge a un decodeur flottant,
+    // tout en ecartant sans ambiguite le cas mesure a 11,97.
+    return crete <= 2;
   }
 
   _lireMetadonnees(fmt) {
@@ -173,6 +269,7 @@ export default class VGMStreamPlayer extends Player {
     }
     this._reste = 0; this._pos = 0; this._bufPtr = 0; this._prec = null;
     this._termine = false;
+    this._surPlace = 0;
 
     const codec = this._chaine(fmt + FMT_CODEC_NAME, 128);
     const meta = this._chaine(fmt + FMT_META_NAME, 128);
@@ -289,6 +386,24 @@ export default class VGMStreamPlayer extends Player {
     // Le decodeur avait pourtant leve son drapeau « done » sur un tampon
     // qu'il avait rempli en partie, et la condition « ecrits === 0 » rejetait
     // ce cas-la, le plus courant de tous.
+    // ET UNE BORNE QUI NE DEPEND D'AUCUN DRAPEAU.
+    //
+    // Le drapeau « done » du decodeur ne suffit pas toujours. Releve sur un
+    // .adx de 30 s en production : arrive a sa borne, la position restait
+    // collee a 29 998 ms — soit exactement la duree annoncee — tandis que le
+    // decodeur rendait encore des blocs de 67 echantillons sans jamais se
+    // declarer termine. Rien ne venait donc conclure le morceau.
+    //
+    // play_samples, dont vient cette duree, est deja calcule par vgmstream
+    // APRES application de la boucle et du fondu : l'atteindre, c'est etre a
+    // la fin. On s'en sert comme garde-fou, et l'on exige deux tampons sans
+    // progression pour ne pas couper sur un simple arrondi.
+    if (!fini && this._dureeMs > 0 && this.getPositionMs() >= this._dureeMs) {
+      if (++this._surPlace >= 2) fini = true;
+    } else {
+      this._surPlace = 0;
+    }
+
     if (fini && !this._termine) {
       this._termine = true;
       this.handleSongEnd();
@@ -322,6 +437,7 @@ export default class VGMStreamPlayer extends Player {
     this._pos = 0;
     this._prec = null;
     this._termine = false;
+    this._surPlace = 0;
   }
 
   getNumSubtunes() { return this._nbSubtunes; }
