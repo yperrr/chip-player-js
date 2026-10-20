@@ -135,6 +135,29 @@ for (const moteur of MOTEURS) {
     continue;
   }
 
+  // L'EN-TETE QUI DESARME LE LINTER.
+  //
+  // Les colles emscripten sont minifiees et referencent des globales que le
+  // linter de Create React App ne connait pas — « Browser is not defined ».
+  // Sans cet en-tete, `npm run build-lite` ECHOUE, et pas ici : a la
+  // construction de l'image, plusieurs minutes plus tard, sur une erreur qui ne
+  // dit rien du moteur concerne.
+  //
+  // La procedure de vendorisation le rappelle (scripts/emscripten/README.md),
+  // mais une procedure s'oublie — celle-ci l'a ete, et a coute un aller-retour
+  // de pipeline. Un controle le rend impossible a oublier.
+  {
+    const debut = fs.readFileSync(chemin, 'latin1').slice(0, 64);
+    if (!debut.startsWith('/*eslint-disable*/')) {
+      console.error('ABI %s : %s ne commence pas par /*eslint-disable*/. '
+        + 'La colle vendorisee doit le porter, sinon la construction du lecteur '
+        + 'echoue au linter. Voir scripts/emscripten/README.md.',
+        moteur.nom, moteur.colle);
+      enEchec = true;
+      continue;
+    }
+  }
+
   const exportes = exportsDeLaColle(fs.readFileSync(chemin, 'utf-8'));
   const manquants = [...demandes].filter(s => !exportes.has(s)).sort();
 
