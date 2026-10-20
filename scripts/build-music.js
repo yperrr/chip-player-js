@@ -7,6 +7,7 @@ const chalk = require('chalk');
 const { toArabic } = require('roman-numerals');
 const { FORMATS } = require('../src/config/index');
 const { parseMetadata } = require('./metadata-parsers');
+const durees = require('./duration-vgmstream');
 
 
 const program = new Command();
@@ -89,6 +90,19 @@ if (options.resetDb) {
   `);
 }
 
+// Migration : la colonne duration_ms est arrivee apres coup, et
+// « CREATE TABLE IF NOT EXISTS » n'ajoute rien a une table existante. Sans
+// ceci, toute base deja construite ferait echouer l'insertion.
+try {
+  const colonnes = db.prepare('PRAGMA table_info(music)').all();
+  if (colonnes.length && !colonnes.some(c => c.name === 'duration_ms')) {
+    db.exec('ALTER TABLE music ADD COLUMN duration_ms INTEGER');
+    console.log(chalk.cyan('Ajout de la colonne duration_ms a la table music.'));
+  }
+} catch (e) {
+  // Table absente : le CREATE ci-dessous la cree avec la colonne.
+}
+
 // 1. Create Tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS images (
@@ -137,6 +151,10 @@ db.exec(`
     text_ids TEXT,               -- JSON array of text IDs
     soundfont TEXT,              -- Relative path to soundfont
     md5 TEXT,                    -- MD5 hash for tracker modules
+    -- Duree en millisecondes. NULL = jamais mesuree, 0 = mesuree sans
+    -- resultat. La distinction evite de remesurer a chaque passage un fichier
+    -- dont personne ne sait donner la duree. Voir duration-vgmstream.js.
+    duration_ms INTEGER,
     sort_order INTEGER DEFAULT 0,
     FOREIGN KEY(directory_id) REFERENCES directories(id),
     FOREIGN KEY(image_id) REFERENCES images(id)
@@ -243,9 +261,10 @@ if (options.hvscOnly) {
 const insertMusicStmt = db.prepare(`
     INSERT OR REPLACE INTO music (
       directory_id, filename, path, extension, song_id, title, artist, contributor, game, system, 
-      copyright, file_size, mtime, raw_meta, image_id, text_ids, soundfont, md5, sort_order
+      copyright, file_size, mtime, raw_meta, image_id, text_ids, soundfont, md5,
+      duration_ms, sort_order
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertDirStmt = db.prepare(`
@@ -344,9 +363,13 @@ const existingFiles = new Map();
 if (!options.resetDb) {
   if (options.verbose) console.log(chalk.cyan('Loading existing file cache...'));
   try {
-    const rows = db.prepare('SELECT path, mtime, sort_order FROM music').all();
+    const rows = db.prepare('SELECT path, mtime, sort_order, duration_ms FROM music').all();
     for (const row of rows) {
-      existingFiles.set(row.path, { mtime: row.mtime, sort_order: row.sort_order });
+      existingFiles.set(row.path, {
+        mtime: row.mtime,
+        sort_order: row.sort_order,
+        duration_ms: row.duration_ms,
+      });
     }
     if (options.verbose) console.log(chalk.cyan(`Loaded ${existingFiles.size} existing entries.`));
   } catch (err) {
@@ -596,7 +619,13 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
   // Check for incremental skip
   if (!options.force && options.skipUnmodified && existingFiles.has(relativePath)) {
     const cached = existingFiles.get(relativePath);
-    if (cached.mtime === stat.mtime.toISOString()) {
+    // Un fichier inchange dont la duree n'a jamais ete tentee doit tout de
+    // meme repasser : sinon les entrees deja au catalogue resteraient sans
+    // duree a jamais, et la fonctionnalite n'aurait d'effet que sur les
+    // nouveaux fichiers.
+    const dureeAReprendre = cached.duration_ms === null
+      || cached.duration_ms === undefined;
+    if (cached.mtime === stat.mtime.toISOString() && !dureeAReprendre) {
       // File hasn't changed.
       // Check if sort order needs update
       if (!options.dryrun && cached.sort_order !== sortOrder) {
@@ -688,6 +717,21 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
     console.log(chalk.green(`[ADD] ${relativePath}`));
   }
 
+  // DUREE. Deux sources, dans cet ordre : la balise du format quand le
+  // parseur en donne une — l'ID666 d'un .spc, par exemple —, sinon vgmstream,
+  // qui la lit dans l'en-tete sans rien decoder. 0 signifie « tente, sans
+  // resultat », et evite de remesurer indefiniment.
+  let dureeMs = 0;
+  if (typeof meta.duration === 'number' && meta.duration > 0) {
+    dureeMs = Math.round(meta.duration * 1000);
+  } else if (durees.mesurable(extension)) {
+    // On garde le null tel quel : il signifie « le moteur n'a pas pu etre
+    // interroge » et laisse la colonne vide, donc a reprendre. Le coercer en 0
+    // marquerait le fichier « deja tente » — et un wasm momentanement absent
+    // priverait de duree tout le catalogue, definitivement.
+    dureeMs = durees.dureeMs(buffer, name);
+  }
+
   if (!options.dryrun) {
     insertMusicStmt.run(
       directoryId,
@@ -708,6 +752,7 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
       JSON.stringify(finalTextIds),
       soundfont,
       md5,
+      dureeMs,
       sortOrder
     );
   }
@@ -740,7 +785,8 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
 // Start
 const startTime = Date.now();
 // Start with root
-processDirectory(CATALOG_DIR, '')
+durees.initialiser()
+  .then(() => processDirectory(CATALOG_DIR, ''))
   .then(() => {
     console.log(chalk.green(`\nDone in ${((Date.now() - startTime) / 1000).toFixed(2)}s`));
     
