@@ -833,6 +833,22 @@ const FORMATS = [
   'minissf',
   'dsf',
   'minidsf',
+  // --- Pistes de disque, lues par src/players/VGMStreamPlayer.js ---
+  //
+  // « xa » est du CD-ROM XA ADPCM dans un enrobage RIFF/CDXA : vgmstream le
+  // reconnait seul, il ne manquait qu'ici. Mesure sur un fichier de Guilty
+  // Gear : 2 canaux, 37 800 Hz, 188 s, crete 0,296.
+  //
+  // « swp » et « pcm » sont des vidages de piste CD SANS en-tete — les .swp de
+  // WipEout, les .swp.pcm de WipEout XL. vgmstream les refuse tels quels ; le
+  // repli _tenterCdDaNu les decrit par un .txth, mais SEULEMENT si leur taille
+  // est un multiple exact du secteur de 2352 octets. Un .pcm d'une autre
+  // provenance echouera donc a la lecture comme avant, sans etre joue de
+  // travers — l'alternative, deviner une disposition, est pire que ne rien
+  // rendre.
+  'xa',
+  'swp',
+  'pcm',
 ];
 const SOUNDFONT_MOUNTPOINT = '/soundfonts';
 const SOUNDFONTS = [
