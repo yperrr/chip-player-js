@@ -30,12 +30,14 @@
 #include <string.h>
 
 #include "psflib.h"
+#include "psf2fs.h"
 #include "psx.h"
 #include "bios.h"
 #include "mkhebios.h"
 #include "sega.h"
 
 #define PSFX_PSF1 0x01
+#define PSFX_PSF2 0x02
 #define PSFX_SSF  0x11
 #define PSFX_DSF  0x12
 
@@ -53,6 +55,16 @@ typedef struct {
   int psf1_vide;     /* 1 tant qu'aucun fichier n'a ete vu */
   uint8_t *psf1_ram;
   uint32_t psf1_debut, psf1_taille;
+  /* PlayStation 2 : un systeme de fichiers VIRTUEL, et non un programme.
+   *
+   * C'est la difference de fond entre PSF1 et PSF2. Le premier porte un
+   * executable PS-X qu'on televerse d'un bloc en memoire. Le second porte une
+   * arborescence de fichiers — modules IRX, banques de sons, sequences — que
+   * le code emule va LIRE au fur et a mesure, comme il lirait un disque. On ne
+   * televerse donc rien : on branche un lecteur de fichiers, et psf2fs repond
+   * a sa place. La chaine de bibliotheques se superpose dans ce meme systeme
+   * de fichiers, les fichiers du morceau recouvrant ceux de la bibliotheque. */
+  void *psf2fs;
   char *tags;        /* « nom=valeur\n » concaténés */
   size_t tags_len, tags_cap;
   int ouvert;
@@ -230,6 +242,7 @@ void psfx_close(void) {
   free(G.psf1_ram); G.psf1_ram = NULL;
   G.psf1_debut = G.psf1_taille = 0;
   G.psf1_vide = 1;
+  if (G.psf2fs) { psf2fs_delete(G.psf2fs); G.psf2fs = NULL; }
   free(G.tags); G.tags = NULL; G.tags_len = G.tags_cap = 0;
   G.ouvert = 0;
   G.type = 0;
@@ -268,6 +281,27 @@ int psfx_open(const char *chemin, int type) {
     G.state = calloc(1, taille);
     if (!G.state) return -2;
     psx_clear_state(G.state, 1);
+  } else if (type == PSFX_PSF2) {
+    /*
+     * Le PSF2 passe par le MEME coeur, et exige donc la meme image de BIOS —
+     * celle que mkhebios fabrique a partir d'un BIOS de PlayStation 2. Le
+     * piege de psx_init() decrit plus haut vaut mot pour mot ici : on verifie
+     * d'abord, on appelle ensuite.
+     *
+     * Ce qui change, c'est la VERSION passee au coeur : 2 au lieu de 1. Elle
+     * commande la taille de l'etat et le processeur emule — l'IOP de la PS2
+     * plutot que le R3000 de la PS1 — et se tromper rendrait une taille
+     * d'etat absurde plutot qu'une erreur.
+     */
+    if (!bios_get_image_native() || !bios_get_imagesize()) return -10;
+    if (!psx_pret) { if (psx_init() != 0) return -1; psx_pret = 1; }
+    uint32_t taille = psx_get_state_size(2);
+    if (taille == 0 || taille > (64u << 20)) return -11;
+    G.state = calloc(1, taille);
+    if (!G.state) return -2;
+    psx_clear_state(G.state, 2);
+    G.psf2fs = psf2fs_create();
+    if (!G.psf2fs) { psfx_close(); return -2; }
   } else if (type == PSFX_SSF || type == PSFX_DSF) {
     if (!sega_pret) { if (sega_init() != 0) return -1; sega_pret = 1; }
     uint8_t v = (type == PSFX_SSF) ? 1 : 2;   /* 1 = Saturn, 2 = Dreamcast */
@@ -278,8 +312,20 @@ int psfx_open(const char *chemin, int type) {
     return -3;
   }
 
+  /*
+   * Le rappel de chargement depend du format, et pour le PSF2 c'est celui de
+   * psflib lui-meme : psf2fs_load_callback empile chaque couche de
+   * l'arborescence, bibliotheques d'abord, morceau par-dessus. On lui passe le
+   * systeme de fichiers comme contexte, la ou les deux autres formats
+   * accumulent dans G.
+   */
+  psf_load_callback charger =
+      (type == PSFX_PSF1) ? cb_load_psf1 :
+      (type == PSFX_PSF2) ? psf2fs_load_callback : cb_load_sdsf;
+  void *ctx_charger = (type == PSFX_PSF2) ? G.psf2fs : NULL;
+
   int r = psf_load(chemin, &CB, (uint8_t)type,
-                   (type == PSFX_PSF1) ? cb_load_psf1 : cb_load_sdsf, NULL,
+                   charger, ctx_charger,
                    cb_info, NULL, 0, NULL, NULL);
   if (r < 0) { psfx_close(); return -4; }
 
@@ -299,6 +345,11 @@ int psfx_open(const char *chemin, int type) {
     int rc = psx_upload_psxexe(G.state, image, (uint32_t)n);
     free(image);
     if (rc != 0) { psfx_close(); return -8; }
+  } else if (type == PSFX_PSF2) {
+    /* Rien a televerser : on branche le lecteur de fichiers, et le code emule
+     * ira chercher ce dont il a besoin dans l'arborescence que psf_load vient
+     * de remplir. */
+    psx_set_readfile(G.state, psf2fs_virtual_readfile, G.psf2fs);
   } else {
     if (G.prog_size < 4) { psfx_close(); return -5; }
     if (sega_upload_program(G.state, G.prog, (uint32_t)G.prog_size) != 0) {
@@ -323,7 +374,8 @@ int psfx_render(int16_t *buf, int demandes) {
   if (!G.ouvert || demandes <= 0) return -1;
   uint32_t n = (uint32_t)demandes;
   int32_t r;
-  if (G.type == PSFX_PSF1) {
+  if (G.type == PSFX_PSF1 || G.type == PSFX_PSF2) {
+    /* Meme coeur, meme appel : c'est l'etat qui porte la version. */
     r = psx_execute(G.state, 0x7fffffff, buf, &n, 0);
     if (r < -1) return -1;
   } else {

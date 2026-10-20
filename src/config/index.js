@@ -829,6 +829,12 @@ const FORMATS = [
   // rien et sont toujours la.
   'psf',
   'minipsf',
+  // PlayStation 2. Meme conteneur, meme coeur, meme exigence de BIOS que le
+  // PSF1 — mais une arborescence de fichiers virtuelle au lieu d'un
+  // executable. « psf2lib » n'y figure pas : c'est la bibliotheque partagee du
+  // rip, recuperee en suivant l'etiquette _lib, pas un morceau a cataloguer.
+  'psf2',
+  'minipsf2',
   'ssf',
   'minissf',
   'dsf',
