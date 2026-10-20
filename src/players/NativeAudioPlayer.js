@@ -176,6 +176,27 @@ export default class NativeAudioPlayer extends Player {
     this.emit('playerStateUpdate', { ...this.getBasePlayerState(), isStopped: false });
   }
 
+  // Pause. THE ONE THE BUTTON ACTUALLY CALLS.
+  //
+  // The base class only flips a boolean, which is enough for every emulated
+  // engine: each reads this.paused at the top of processAudio and renders
+  // silence. This player produces no samples of its own - the media element is
+  // wired straight into the graph - so the flag paused nothing at all. The
+  // button went through its motions, isPlaying() dutifully reported paused,
+  // and the music kept going.
+  //
+  // Nine formats were affected, not just mp3: every extension in
+  // fileExtensions above.
+  togglePause() {
+    const paused = super.togglePause();
+    if (paused) {
+      this.audioEl.pause();
+    } else {
+      this.audioEl.play().catch(() => { /* refused: the button will do it */ });
+    }
+    return paused;
+  }
+
   suspend() {
     this.audioEl.pause();
     super.suspend();
