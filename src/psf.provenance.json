@@ -18,8 +18,8 @@
   },
   "colle": {
     "fichier": "src/psf.js",
-    "octets": 59191,
-    "sha256": "7c7cae3cf893377632ce14860bfa6a86dcc3232e21d96714f5d1074dc43aecab"
+    "octets": 59209,
+    "sha256": "240754e4653b4dc1975241202bdb36fb53c27d7f21d8bde199482ee611516390"
   },
   "wasm": {
     "fichier": "src/psf.wasm",
