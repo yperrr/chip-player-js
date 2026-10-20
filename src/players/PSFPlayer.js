@@ -11,22 +11,36 @@ import autoBind from 'auto-bind';
 // different en rien du point de vue du format — le prefixe signale seulement,
 // par convention, que le fichier ne tient debout qu'avec sa bibliotheque.
 //
-// Hors perimetre pour l'instant : psf2 (PlayStation 2), qui demande en plus le
-// systeme de fichiers virtuel psf2fs ; 2sf, gsf, snsf, qsf, ncsf, qui sont
-// d'autres machines encore, chacune avec son emulateur.
-const fileExtensions = ['psf', 'minipsf', 'ssf', 'minissf', 'dsf', 'minidsf'];
+// Hors perimetre pour l'instant : 2sf, gsf, snsf, qsf, ncsf — d'autres
+// machines encore, chacune avec son emulateur, qu'il faudrait compiler en plus.
+//
+// « psf2lib » ne figure PAS dans cette liste, et c'est voulu : c'est la
+// bibliotheque partagee d'un rip PSF2, pas un morceau. L'indexer peuplerait le
+// catalogue d'entrees de plusieurs megaoctets qui ne jouent rien. Elle est
+// recuperee automatiquement par _deposerAvecLibs, en suivant l'etiquette _lib
+// du morceau — exactement comme les .psflib du PSF1.
+const fileExtensions = ['psf', 'minipsf', 'psf2', 'minipsf2',
+                        'ssf', 'minissf', 'dsf', 'minidsf'];
 
 const MOUNTPOINT = '/psf';
 
 // Octet 3 de l'en-tete PSF. Les deux coeurs embarques couvrent ceux-ci.
 const TYPE_PSF1 = 0x01;
+const TYPE_PSF2 = 0x02;
 const TYPE_SSF = 0x11;
 const TYPE_DSF = 0x12;
 const TYPES_CONNUS = {
   [TYPE_PSF1]: 'PlayStation',
+  [TYPE_PSF2]: 'PlayStation 2',
   [TYPE_SSF]: 'Sega Saturn',
   [TYPE_DSF]: 'Dreamcast',
 };
+
+// Les deux formats PlayStation passent par le MEME coeur, et exigent donc la
+// meme image de BIOS. Les enumerer ici plutot que de tester un type a la fois :
+// un PSF2 sans BIOS figerait l'onglet exactement comme un PSF1, pour la meme
+// raison, et oublier l'un des deux ne se verrait qu'a l'usage.
+const EXIGENT_UN_BIOS = new Set([TYPE_PSF1, TYPE_PSF2]);
 
 // Ou trouver les images de BIOS deposees par l'administrateur. Le manifeste
 // est ecrit au demarrage du conteneur par bios-manifest.js, cote stack : un
@@ -381,10 +395,7 @@ export default class PSFPlayer extends Player {
     const type = this.core._psfx_type_of
       ? (data.length >= 4 && data[0] === 0x50 && data[1] === 0x53 && data[2] === 0x46 ? data[3] : 0)
       : 0;
-    if (type === 0x02) {
-      throw Error('psf : la PlayStation 2 (PSF2) n\'est pas prise en charge par ce moteur');
-    }
-    if (type === TYPE_PSF1) {
+    if (EXIGENT_UN_BIOS.has(type)) {
       // On s'assure du BIOS AVANT d'entrer dans le wasm. Voir l'en-tete de ce
       // fichier : le coeur PlayStation sans BIOS valable ne rend pas la main.
       await this._assurerBios();

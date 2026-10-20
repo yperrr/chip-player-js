@@ -6,7 +6,7 @@
     "Highly_Experimental": "https://github.com/kode54/Highly_Experimental @ ccffd7b5f21ab8feaed78544b677e7da0ad43ce7",
     "Highly_Theoretical": "https://github.com/kode54/Highly_Theoretical @ 2998a4bf550949cd2daee249e725a64462cf15e0"
   },
-  "machines": "Saturn (68000 + SCSP) et Dreamcast (ARM7 + AICA) : operationnels, sans rien reclamer. PlayStation (R3000 + SPU) : operationnel A CONDITION qu une image HE BIOS soit fournie. mkhebios est compile dans le module : l utilisateur depose un BIOS de PlayStation 2 de 4 Mo et la conversion se fait a la volee. PlayStation 2 (PSF2) hors perimetre : demande psf2fs.",
+  "machines": "Saturn (68000 + SCSP) et Dreamcast (ARM7 + AICA) : operationnels, sans rien reclamer. PlayStation (PSF1, R3000 + SPU) et PlayStation 2 (PSF2, IOP) : operationnels A CONDITION qu une image HE BIOS soit fournie - la MEME pour les deux. mkhebios est compile dans le module : l utilisateur depose un BIOS de PlayStation 2 de 4 Mo et la conversion se fait a la volee. Le PSF2 ne televerse pas de programme : il expose une arborescence de fichiers par psf2fs, que le code emule lit a la demande (psx_set_readfile).",
   "construction": {
     "recette": "scripts/emscripten/psf/Dockerfile",
     "image": "emscripten/emsdk:6.0.0",
@@ -18,12 +18,12 @@
   },
   "colle": {
     "fichier": "src/psf.js",
-    "octets": 59210,
-    "sha256": "8c217ad90c7b745f0dedd2983d8a7a4eb4df02ea2cdea590251614739cc21348"
+    "octets": 59191,
+    "sha256": "7c7cae3cf893377632ce14860bfa6a86dcc3232e21d96714f5d1074dc43aecab"
   },
   "wasm": {
     "fichier": "src/psf.wasm",
-    "octets": 774676,
-    "sha256": "f44562831f1b73d279dd48839d548b8923b6d616ee5e4c5111df18d8f7c8e224"
+    "octets": 777345,
+    "sha256": "7cf16c9f9f2bccabe019c0a6d3f563ee77e3a34f9c48e3d85e750421d849dd55"
   }
 }
