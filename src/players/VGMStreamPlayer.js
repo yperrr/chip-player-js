@@ -13,7 +13,26 @@ import EXTENSIONS_VGMSTREAM from '../vgmstream-extensions.json';
 // vgmstream partage avec un moteur plus specialise — spc, vgm, mus, imf, med,
 // ams, dbm, stm, stx, sfx, oga — reviennent donc naturellement a celui-ci.
 // C'est le role d'un moteur generaliste : prendre ce que personne ne reclame.
-const fileExtensions = EXTENSIONS_VGMSTREAM;
+// Extensions que vgmstream NE DECLARE PAS mais que _tenterCdDaNu sait lire.
+//
+// vgmstream-extensions.json est produit par la recette de construction, a
+// partir de la bibliotheque elle-meme, et figure dans la provenance : on ne le
+// retouche pas a la main, sans quoi il mentirait des la prochaine
+// reconstruction. Les extensions que seuls NOS replis couvrent s'ajoutent donc
+// ici. « pcm » et « xa », eux, y sont deja.
+const EXTENSIONS_REPLI = ['swp'];
+
+const fileExtensions = [...EXTENSIONS_VGMSTREAM, ...EXTENSIONS_REPLI];
+
+// Un secteur de disque compact : 2352 octets, soit 588 trames de 16 bits
+// stereo — exactement 1/75 de seconde a 44 100 Hz. Un vidage de piste CD en
+// est toujours un multiple exact ; c'est ce qui identifie les .swp de WipEout.
+const SECTEUR_CD = 2352;
+
+// Seuil de continuite. Mesure : 0,989 et 0,973 pour la bonne interpretation,
+// 0,004 et moins pour toutes les autres. A 0,5 on reste large sans jamais
+// accepter du bruit.
+const CONTINUITE_MIN = 0.5;
 
 const SFMT_PCM16 = 1;
 const SFMT_FLOAT = 4;
@@ -146,7 +165,7 @@ export default class VGMStreamPlayer extends Player {
     this.core._libstreamfile_close(libsf);
 
     if (!this.lib) {
-      this.lib = this._tenterAtrac3Nu(nom);
+      this.lib = this._tenterAtrac3Nu(nom) || this._tenterCdDaNu(nom, data);
     }
 
     if (!this.lib) {
@@ -238,6 +257,112 @@ export default class VGMStreamPlayer extends Player {
     }
     c._libvgmstream_seek(lib, BigInt(0));
     return lib;
+  }
+
+  /**
+   * Repli pour un vidage de piste CD brut : les .swp de WipEout et les
+   * .swp.pcm de WipEout XL.
+   *
+   * CE QUE SONT CES FICHIERS. Rien ne les annonce : leurs trente-deux premiers
+   * octets sont nuls et vgmstream les refuse. Ce sont des echantillons sans
+   * en-tete, 16 bits signes petit-boutiste, stereo, 44 100 Hz. Trois mesures
+   * independantes le disent, et aucune n'est une supposition :
+   *
+   *   - La TAILLE. 55 558 944 et 64 440 096 octets sont des multiples exacts
+   *     de 2352 — la taille d'un secteur de disque compact. Or 2352 octets
+   *     font 588 trames de 16 bits stereo, soit precisement 1/75 de seconde a
+   *     44 100 Hz : la cadence des secteurs d'un CD audio. Cette unite n'a de
+   *     sens a aucune autre combinaison de largeur, de canaux ou de cadence.
+   *   - La CONTINUITE. L'autocorrelation au decalage 1 vaut 0,989 et 0,973 en
+   *     lisant du 16 bits petit-boutiste, contre 0,004 et 0,000 en gros-
+   *     boutiste, et ~0 en 8 bits. Une forme d'onde echantillonnee est
+   *     continue d'un echantillon au suivant ; une mauvaise interpretation
+   *     retombe sur du bruit. Une seule lecture tient debout.
+   *   - Le SPECTRE. L'energie monte sans rupture jusqu'a Nyquist, avec une
+   *     simple pente de -39 puis -49 dB dans les deux dernieres vingtiemes.
+   *     Un flux de 37 800 Hz (CD-XA) lu a 44 100 montrerait une falaise a
+   *     0,857 de Nyquist, une source MP3 une coupure vers 0,72. Ni l'une ni
+   *     l'autre.
+   *
+   * POURQUOI LA REGLE EST AUSSI ETROITE. On avait d'abord voulu deduire le
+   * nombre de canaux du signal, en comparant l'autocorrelation aux decalages
+   * 1 et 2 : un flux stereo entrelace est plus correle au decalage 2, qui
+   * retombe sur le meme canal. Mesure, ce critere se trompe — sur
+   * DUSTUP.SWP.PCM il rend 0,9719 contre 0,9669 et conclut « mono », parce
+   * que les deux canaux y sont quasi identiques (correlation 0,984). Se fier
+   * a lui aurait joue le morceau une octave trop bas.
+   *
+   * On s'en tient donc a la preuve qu'on a : l'alignement sur le secteur. Une
+   * taille qui n'est pas un multiple de 2352 ne decrit pas un vidage de piste
+   * CD, et on preferera le dire — « format non reconnu » — plutot que
+   * d'inventer une disposition.
+   */
+  _tenterCdDaNu(nom, data) {
+    if (!/\.(swp|pcm)$/i.test(nom)) return 0;
+    if (!data || data.length === 0 || data.length % SECTEUR_CD !== 0) return 0;
+    if (this._continuitePcm16Stereo(data) < CONTINUITE_MIN) return 0;
+
+    const c = this.core;
+    const txth = [
+      'codec = PCM16LE',
+      'channels = 2',
+      'sample_rate = 44100',
+      'num_samples = data_size',
+      '',
+    ].join('\n');
+    this.cheminTxth = this.cheminFs + '.txth';
+    try {
+      c.FS.writeFile(this.cheminTxth, new TextEncoder().encode(txth));
+    } catch (e) {
+      this.cheminTxth = null;
+      return 0;
+    }
+
+    const ptr = c._malloc(this.cheminFs.length + 1);
+    c.stringToUTF8(this.cheminFs, ptr, this.cheminFs.length + 1);
+    const sf = c._libstreamfile_open_from_stdio(ptr);
+    c._free(ptr);
+    if (!sf) return 0;
+    const lib = c._libvgmstream_create(sf, this._subtune + 1, 0);
+    c._libstreamfile_close(sf);
+    if (!lib) return 0;
+
+    if (!this._decodageSain(lib)) {
+      c._libvgmstream_free(lib);
+      return 0;
+    }
+    c._libvgmstream_seek(lib, BigInt(0));
+    return lib;
+  }
+
+  /**
+   * Autocorrelation au decalage 1 du canal gauche, lu en 16 bits signes
+   * petit-boutiste entrelace sur deux canaux.
+   *
+   * On echantillonne au MILIEU du fichier : ces vidages commencent par du
+   * silence, et du silence est parfaitement « continu » — il validerait
+   * n'importe quelle interpretation.
+   */
+  _continuitePcm16Stereo(data) {
+    const PAR_TRAME = 4;                 // 2 canaux x 16 bits
+    let debut = data.length >> 1;
+    debut -= debut % PAR_TRAME;
+    const n = Math.min(8192, Math.floor((data.length - debut) / PAR_TRAME));
+    if (n < 1024) return 0;
+    const vue = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    let somme = 0;
+    for (let i = 0; i < n; i++) somme += vue.getInt16(debut + i * PAR_TRAME, true);
+    const moy = somme / n;
+    let num = 0, den = 0;
+    let prec = vue.getInt16(debut, true) - moy;
+    den += prec * prec;
+    for (let i = 1; i < n; i++) {
+      const v = vue.getInt16(debut + i * PAR_TRAME, true) - moy;
+      num += prec * v;
+      den += v * v;
+      prec = v;
+    }
+    return den > 0 ? num / den : 0;
   }
 
   /** Les premiers blocs tiennent-ils dans l'echelle ? */
