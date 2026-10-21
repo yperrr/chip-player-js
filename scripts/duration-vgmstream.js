@@ -71,8 +71,10 @@ const FMT_PLAY_SAMPLES = 64;   // int64
 const RESERVEES_AUX_AUTRES_MOTEURS = [
   // GMEPlayer
   'ay', 'gbs', 'hes', 'kss', 'nsf', 'nsfe', 'sap', 'sgc', 'spc',
-  // PSFPlayer
-  'psf', 'minipsf', 'ssf', 'minissf', 'dsf', 'minidsf',
+  // PSFPlayer — doit suivre ses fileExtensions, que verify-wasm-abi.js
+  // confronte a cette liste : elle avait deja derive deux fois.
+  'psf', 'minipsf', 'psf2', 'minipsf2', 'ssf', 'minissf', 'dsf', 'minidsf',
+  'gsf', 'minigsf',
   // NativeAudioPlayer
   'aac', 'flac', 'm4a', 'mp3', 'oga', 'ogg', 'opus', 'wav', 'webm',
   // VGMPlayer

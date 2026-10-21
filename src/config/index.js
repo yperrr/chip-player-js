@@ -839,6 +839,14 @@ const FORMATS = [
   'minissf',
   'dsf',
   'minidsf',
+  // Game Boy Advance, par viogsf (derive de VBA-M). Le GSF ne porte pas un
+  // programme a televerser mais un MORCEAU DE CARTOUCHE : le .gsflib contient
+  // le moteur audio du jeu, et chaque .minigsf de quelques centaines d'octets
+  // n'en change que le numero de morceau. « gsflib » n'est donc pas declare —
+  // c'est une dependance, pas un morceau. Aucune image exterieure a fournir,
+  // contrairement aux formats PlayStation.
+  'gsf',
+  'minigsf',
   // --- Pistes de disque, lues par src/players/VGMStreamPlayer.js ---
   //
   // « xa » est du CD-ROM XA ADPCM dans un enrobage RIFF/CDXA : vgmstream le
