@@ -119,11 +119,15 @@ export default class Browse extends React.PureComponent {
           <span className="Browse-crumbs">
             <DirectoryLink to="/browse" search={search} plain>/</DirectoryLink>
             {browsePath.split('/').filter(Boolean).map((segment, i, segments) => (
+              // The separator goes BEFORE each segment, not after. Trailing
+              // separators left the root glued to the first folder —
+              // "/GBA / Country" instead of "/ GBA / Country" — because the
+              // root carries its own slash and so got no separator of its own.
               <Fragment key={i}>
+                {i === 0 ? ' ' : ' / '}
                 <DirectoryLink
                   to={pathJoin('/browse', segments.slice(0, i + 1).join('/'))}
                   search={search} plain>{segment}</DirectoryLink>
-                {i < segments.length - 1 ? ' / ' : null}
               </Fragment>
             ))}
           </span>{' '}
