@@ -5,6 +5,7 @@ import DirectoryLink from './DirectoryLink';
 import bytes from 'bytes';
 import FavoriteButton from './FavoriteButton';
 import trimEnd from 'lodash/trimEnd';
+import { pathJoin } from '../util';
 
 
 export default class Browse extends React.PureComponent {
@@ -112,7 +113,20 @@ export default class Browse extends React.PureComponent {
         isSorted={true}
       >
         <h3 className="Browse-topRow">
-          /{browsePath}{' '}
+          {/* Breadcrumb: every segment is a link back up the tree.
+              The path used to be plain text, so climbing two levels meant
+              hitting '..' twice — or editing the URL. */}
+          <span className="Browse-crumbs">
+            <DirectoryLink to="/browse" search={search} plain>/</DirectoryLink>
+            {browsePath.split('/').filter(Boolean).map((segment, i, segments) => (
+              <Fragment key={i}>
+                <DirectoryLink
+                  to={pathJoin('/browse', segments.slice(0, i + 1).join('/'))}
+                  search={search} plain>{segment}</DirectoryLink>
+                {i < segments.length - 1 ? ' / ' : null}
+              </Fragment>
+            ))}
+          </span>{' '}
           <button
             className="box-button"
             title="Shuffle this directory (and all subdirectories)"

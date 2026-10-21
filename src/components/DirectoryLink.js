@@ -14,6 +14,10 @@ function DirectoryLink(props) {
   const history = useHistory();
   const linkClassName = props.dim ? 'DirectoryLink-dim' : null;
   const folderClassName = props.dim ? 'inline-icon dim-icon icon-folder' : 'inline-icon icon-folder';
+  // `plain` drops the folder icon. Used by the breadcrumb, where one icon per
+  // segment would be noise — but the link still goes through this component so
+  // it keeps the percent-encoding fix below, which a bare <Link> would miss.
+  const showIcon = !props.plain;
   // Double encode % because react-router will decode this into history.
   // See https://github.com/ReactTraining/history/issues/505
   // The fix https://github.com/ReactTraining/history/pull/656
@@ -33,7 +37,7 @@ function DirectoryLink(props) {
 
   return (
     <Link to={toObj} className={linkClassName} onClick={onClick} tabIndex="-1">
-      <span className={folderClassName}/>{props.children}
+      {showIcon ? <span className={folderClassName}/> : null}{props.children}
     </Link>
   );
 }
@@ -41,6 +45,7 @@ function DirectoryLink(props) {
 DirectoryLink.propTypes = {
   to: PropTypes.string.isRequired,
   dim: PropTypes.bool,
+  plain: PropTypes.bool,
   search: PropTypes.string,
   isBackLink: PropTypes.bool,
 };
