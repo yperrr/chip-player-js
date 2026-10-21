@@ -177,4 +177,45 @@ for (const moteur of MOTEURS) {
 }
 
 if (enEchec) process.exit(1);
+// --- Les extensions de PSFPlayer sont-elles exclues de la mesure de duree ? --
+//
+// scripts/duration-vgmstream.js tient la liste des extensions que vgmstream ne
+// doit PAS mesurer, parce qu'un autre moteur les joue. Celle de PSFPlayer y a
+// derive deux fois : « psf2 » oublie a l'ajout de la PlayStation 2, « gsf » a
+// celui de la Game Boy Advance. Or « gsf » designe chez vgmstream un tout
+// autre format — la duree inscrite au catalogue aurait ete celle d'un fichier
+// que personne n'ecoute, et rien ne l'aurait signale.
+//
+// On confronte donc les deux listes ici, dans le controle qui tourne deja en
+// porte du Dockerfile.
+{
+  const litteral = (chemin, motif) => {
+    try {
+      const m = motif.exec(fs.readFileSync(path.join(RACINE, chemin), 'utf-8'));
+      return m ? [...m[1].matchAll(/'([a-z0-9_]+)'/g)].map(x => x[1]) : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  const duPsf = litteral('src/players/PSFPlayer.js',
+    /const fileExtensions = \[([\s\S]*?)\]/);
+  const exclues = litteral('scripts/duration-vgmstream.js',
+    /const RESERVEES_AUX_AUTRES_MOTEURS = \[([\s\S]*?)\n\]/);
+
+  if (!duPsf || !exclues) {
+    console.warn('Durees : listes illisibles, controle ignore.');
+  } else {
+    const oubliees = duPsf.filter(e => !exclues.includes(e));
+    if (oubliees.length) {
+      console.error('Durees : %s manque(nt) dans RESERVEES_AUX_AUTRES_MOTEURS de '
+        + 'scripts/duration-vgmstream.js. vgmstream mesurerait ces fichiers avec '
+        + 'un autre format que celui qui les joue.', oubliees.join(', '));
+      enEchec = true;
+    } else {
+      console.log('Durees : les %d extensions de PSFPlayer sont bien exclues.', duPsf.length);
+    }
+  }
+}
+
+if (enEchec) process.exit(1);
 console.log('ABI : aucun symbole manquant.');

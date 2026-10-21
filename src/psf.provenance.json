@@ -1,12 +1,13 @@
 {
-  "bibliotheque": "psflib + Highly_Experimental + Highly_Theoretical",
-  "licence": "psflib : MIT. Highly_Experimental et Highly_Theoretical : voir Readme.txt de chaque depot (Neill Corlett, Christopher Snowhill).",
+  "bibliotheque": "psflib + Highly_Experimental + Highly_Theoretical + viogsf",
+  "licence": "psflib : MIT. Highly_Experimental et Highly_Theoretical : voir Readme.txt de chaque depot (Neill Corlett, Christopher Snowhill). viogsf : GPL, derive de VBA-M (voir vbam/License.txt et gpl.txt).",
   "sources": {
     "psflib": "https://github.com/kode54/psflib @ 95509e0c6f13d769593bbf51a1b0e0efdc355ba1",
     "Highly_Experimental": "https://github.com/kode54/Highly_Experimental @ ccffd7b5f21ab8feaed78544b677e7da0ad43ce7",
-    "Highly_Theoretical": "https://github.com/kode54/Highly_Theoretical @ 2998a4bf550949cd2daee249e725a64462cf15e0"
+    "Highly_Theoretical": "https://github.com/kode54/Highly_Theoretical @ 2998a4bf550949cd2daee249e725a64462cf15e0",
+    "viogsf": "https://github.com/kode54/viogsf @ 6c43a9926a6a85fbb736ea8f5f7f6c4f59ed3d64"
   },
-  "machines": "Saturn (68000 + SCSP) et Dreamcast (ARM7 + AICA) : operationnels, sans rien reclamer. PlayStation (PSF1, R3000 + SPU) et PlayStation 2 (PSF2, IOP) : operationnels A CONDITION qu une image HE BIOS soit fournie - la MEME pour les deux. mkhebios est compile dans le module : l utilisateur depose un BIOS de PlayStation 2 de 4 Mo et la conversion se fait a la volee. Le PSF2 ne televerse pas de programme : il expose une arborescence de fichiers par psf2fs, que le code emule lit a la demande (psx_set_readfile).",
+  "machines": "Saturn (68000 + SCSP), Dreamcast (ARM7 + AICA) et Game Boy Advance (ARM7TDMI + APU, par viogsf) : operationnels, sans rien reclamer. PlayStation (PSF1, R3000 + SPU) et PlayStation 2 (PSF2, IOP) : operationnels A CONDITION qu une image HE BIOS soit fournie - la MEME pour les deux. mkhebios est compile dans le module : l utilisateur depose un BIOS de PlayStation 2 de 4 Mo et la conversion se fait a la volee. Le PSF2 ne televerse pas de programme : il expose une arborescence de fichiers par psf2fs, que le code emule lit a la demande (psx_set_readfile). Le GSF, lui, reconstitue une cartouche a partir des segments de la chaine.",
   "construction": {
     "recette": "scripts/emscripten/psf/Dockerfile",
     "image": "emscripten/emsdk:6.0.0",
@@ -14,16 +15,16 @@
   },
   "shim": {
     "fichier": "scripts/emscripten/psf/shim.c",
-    "note": "psflib ne se pilote que par rappels C. Les ecrire ici evite de fabriquer des pointeurs de fonction depuis JavaScript et de faire traverser la frontiere a chaque octet lu."
+    "note": "psflib ne se pilote que par rappels C. Les ecrire ici evite de fabriquer des pointeurs de fonction depuis JavaScript et de faire traverser la frontiere a chaque octet lu. gsf.cpp s ajoute pour viogsf, qui est en C++ : sa sortie audio est une classe abstraite, qu on n implemente pas depuis du C."
   },
   "colle": {
     "fichier": "src/psf.js",
-    "octets": 59209,
-    "sha256": "240754e4653b4dc1975241202bdb36fb53c27d7f21d8bde199482ee611516390"
+    "octets": 59450,
+    "sha256": "554c37caeda6f6aee3aea15745f768799e0a6b1d76786b3641c6a26941fdaa94"
   },
   "wasm": {
     "fichier": "src/psf.wasm",
-    "octets": 777345,
-    "sha256": "7cf16c9f9f2bccabe019c0a6d3f563ee77e3a34f9c48e3d85e750421d849dd55"
+    "octets": 1384081,
+    "sha256": "35dfbc5d4b763d29abcf0cd84974221c99a4e5d578ed6855fda3292183714bf9"
   }
 }

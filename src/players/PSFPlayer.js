@@ -11,16 +11,17 @@ import autoBind from 'auto-bind';
 // different en rien du point de vue du format — le prefixe signale seulement,
 // par convention, que le fichier ne tient debout qu'avec sa bibliotheque.
 //
-// Hors perimetre pour l'instant : 2sf, gsf, snsf, qsf, ncsf — d'autres
-// machines encore, chacune avec son emulateur, qu'il faudrait compiler en plus.
+// Hors perimetre pour l'instant : 2sf, snsf, qsf, ncsf — d'autres machines
+// encore, chacune avec son emulateur, qu'il faudrait compiler en plus.
 //
-// « psf2lib » ne figure PAS dans cette liste, et c'est voulu : c'est la
-// bibliotheque partagee d'un rip PSF2, pas un morceau. L'indexer peuplerait le
-// catalogue d'entrees de plusieurs megaoctets qui ne jouent rien. Elle est
-// recuperee automatiquement par _deposerAvecLibs, en suivant l'etiquette _lib
-// du morceau — exactement comme les .psflib du PSF1.
+// Les bibliotheques partagees — « psflib », « psf2lib », « gsflib » — ne
+// figurent PAS dans cette liste, et c'est voulu : ce sont des dependances, pas
+// des morceaux. Les indexer peuplerait le catalogue d'entrees qui ne jouent
+// rien. Elles sont recuperees automatiquement par _deposerAvecLibs, en suivant
+// l'etiquette _lib du morceau.
 const fileExtensions = ['psf', 'minipsf', 'psf2', 'minipsf2',
-                        'ssf', 'minissf', 'dsf', 'minidsf'];
+                        'ssf', 'minissf', 'dsf', 'minidsf',
+                        'gsf', 'minigsf'];
 
 const MOUNTPOINT = '/psf';
 
@@ -29,11 +30,13 @@ const TYPE_PSF1 = 0x01;
 const TYPE_PSF2 = 0x02;
 const TYPE_SSF = 0x11;
 const TYPE_DSF = 0x12;
+const TYPE_GSF = 0x22;
 const TYPES_CONNUS = {
   [TYPE_PSF1]: 'PlayStation',
   [TYPE_PSF2]: 'PlayStation 2',
   [TYPE_SSF]: 'Sega Saturn',
   [TYPE_DSF]: 'Dreamcast',
+  [TYPE_GSF]: 'Game Boy Advance',
 };
 
 // Les deux formats PlayStation passent par le MEME coeur, et exigent donc la

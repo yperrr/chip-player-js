@@ -36,10 +36,22 @@
 #include "mkhebios.h"
 #include "sega.h"
 
+/*
+ * Le coeur Game Boy Advance vit dans gsf.cpp, en C++ — sa sortie audio est une
+ * classe abstraite, qu'on n'implemente pas depuis du C. On ne declare ici que
+ * les quelques fonctions qu'il expose, plutot que d'inclure ses en-tetes C++.
+ */
+void *gsfx_creer(void);
+void gsfx_liberer(void *);
+int gsfx_charger_segment(void *, const uint8_t *exe, size_t taille);
+int gsfx_demarrer(void *);
+int gsfx_rendre(void *, int16_t *sortie, int trames);
+
 #define PSFX_PSF1 0x01
 #define PSFX_PSF2 0x02
 #define PSFX_SSF  0x11
 #define PSFX_DSF  0x12
+#define PSFX_GSF  0x22
 
 /* Les deux cœurs rendent du 16 bits stéréo à cette cadence, sans réglage. */
 #define PSFX_RATE 44100
@@ -65,6 +77,8 @@ typedef struct {
    * a sa place. La chaine de bibliotheques se superpose dans ce meme systeme
    * de fichiers, les fichiers du morceau recouvrant ceux de la bibliotheque. */
   void *psf2fs;
+  /* Game Boy Advance : l'etat vit dans gsf.cpp, derriere un pointeur opaque. */
+  void *gsf;
   char *tags;        /* « nom=valeur\n » concaténés */
   size_t tags_len, tags_cap;
   int ouvert;
@@ -202,6 +216,16 @@ static int cb_load_psf1(void *ctx, const uint8_t *exe, size_t exe_size,
  * — c'est la regle du format, et c'est ce qui fait qu'un .ssf de quelques
  * centaines d'octets joue vraiment, en se posant sur la .ssflib du jeu.
  */
+/*
+ * Un segment GSF. psflib appelle ce rappel une fois par fichier de la chaine,
+ * bibliotheque d'abord ; gsf.cpp les superpose dans la cartouche.
+ */
+static int cb_load_gsf(void *ctx, const uint8_t *exe, size_t exe_size,
+                       const uint8_t *reserved, size_t reserved_size) {
+  (void)ctx; (void)reserved; (void)reserved_size;
+  return gsfx_charger_segment(G.gsf, exe, exe_size) == 0 ? 0 : -1;
+}
+
 static int cb_load_sdsf(void *ctx, const uint8_t *exe, size_t exe_size,
                         const uint8_t *reserved, size_t reserved_size) {
   (void)ctx; (void)reserved; (void)reserved_size;
@@ -243,6 +267,7 @@ void psfx_close(void) {
   G.psf1_debut = G.psf1_taille = 0;
   G.psf1_vide = 1;
   if (G.psf2fs) { psf2fs_delete(G.psf2fs); G.psf2fs = NULL; }
+  if (G.gsf) { gsfx_liberer(G.gsf); G.gsf = NULL; }
   free(G.tags); G.tags = NULL; G.tags_len = G.tags_cap = 0;
   G.ouvert = 0;
   G.type = 0;
@@ -302,6 +327,11 @@ int psfx_open(const char *chemin, int type) {
     psx_clear_state(G.state, 2);
     G.psf2fs = psf2fs_create();
     if (!G.psf2fs) { psfx_close(); return -2; }
+  } else if (type == PSFX_GSF) {
+    /* Aucune image exterieure a fournir : viogsf embarque de quoi demarrer une
+     * cartouche, contrairement aux coeurs PlayStation. */
+    G.gsf = gsfx_creer();
+    if (!G.gsf) return -2;
   } else if (type == PSFX_SSF || type == PSFX_DSF) {
     if (!sega_pret) { if (sega_init() != 0) return -1; sega_pret = 1; }
     uint8_t v = (type == PSFX_SSF) ? 1 : 2;   /* 1 = Saturn, 2 = Dreamcast */
@@ -321,7 +351,8 @@ int psfx_open(const char *chemin, int type) {
    */
   psf_load_callback charger =
       (type == PSFX_PSF1) ? cb_load_psf1 :
-      (type == PSFX_PSF2) ? psf2fs_load_callback : cb_load_sdsf;
+      (type == PSFX_PSF2) ? psf2fs_load_callback :
+      (type == PSFX_GSF) ? cb_load_gsf : cb_load_sdsf;
   void *ctx_charger = (type == PSFX_PSF2) ? G.psf2fs : NULL;
 
   int r = psf_load(chemin, &CB, (uint8_t)type,
@@ -350,6 +381,9 @@ int psfx_open(const char *chemin, int type) {
      * ira chercher ce dont il a besoin dans l'arborescence que psf_load vient
      * de remplir. */
     psx_set_readfile(G.state, psf2fs_virtual_readfile, G.psf2fs);
+  } else if (type == PSFX_GSF) {
+    /* Les segments sont en place : on charge la cartouche et on demarre. */
+    if (gsfx_demarrer(G.gsf) != 0) { psfx_close(); return -9; }
   } else {
     if (G.prog_size < 4) { psfx_close(); return -5; }
     if (sega_upload_program(G.state, G.prog, (uint32_t)G.prog_size) != 0) {
@@ -374,6 +408,9 @@ int psfx_render(int16_t *buf, int demandes) {
   if (!G.ouvert || demandes <= 0) return -1;
   uint32_t n = (uint32_t)demandes;
   int32_t r;
+  if (G.type == PSFX_GSF) {
+    return gsfx_rendre(G.gsf, buf, demandes);
+  }
   if (G.type == PSFX_PSF1 || G.type == PSFX_PSF2) {
     /* Meme coeur, meme appel : c'est l'etat qui porte la version. */
     r = psx_execute(G.state, 0x7fffffff, buf, &n, 0);

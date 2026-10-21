@@ -36,6 +36,7 @@ FROM emscripten/emsdk:6.0.0 AS build
 ARG PSFLIB_COMMIT=95509e0c6f13d769593bbf51a1b0e0efdc355ba1
 ARG HE_COMMIT=ccffd7b5f21ab8feaed78544b677e7da0ad43ce7
 ARG HT_COMMIT=2998a4bf550949cd2daee249e725a64462cf15e0
+ARG VIOGSF_COMMIT=6c43a9926a6a85fbb736ea8f5f7f6c4f59ed3d64
 
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
@@ -44,14 +45,31 @@ WORKDIR /src
 RUN git clone https://github.com/kode54/psflib.git psflib \
  && git clone https://github.com/kode54/Highly_Experimental.git he \
  && git clone https://github.com/kode54/Highly_Theoretical.git ht \
+ && git clone https://github.com/kode54/viogsf.git viogsf \
  && git -C psflib checkout "$PSFLIB_COMMIT" \
  && git -C he checkout "$HE_COMMIT" \
  && git -C ht checkout "$HT_COMMIT" \
- && for d in psflib he ht; do \
+ && git -C viogsf checkout "$VIOGSF_COMMIT" \
+ && for d in psflib he ht viogsf; do \
       printf '%-10s %s\n' "$d" "$(git -C $d rev-parse HEAD)"; \
     done | tee /tmp/provenance.txt
 
 COPY shim.c /src/shim.c
+COPY gsf.cpp /src/gsf.cpp
+
+# regparm EST UN ATTRIBUT x86, et GBAcpu.h ne le conditionne qu'a __GNUC__ —
+# que clang satisfait. Sur wasm, chaque fonction ainsi decoree fait echouer la
+# compilation. On retire l'attribut, ce qui revient exactement a la branche
+# non-GNU de ce meme en-tete.
+#
+# La substitution est ENCADREE : on verifie qu'il y avait bien quelque chose a
+# changer, puis qu'il ne reste rien. Un sed muet qui ne trouve plus son motif
+# laisserait passer une recette silencieusement cassee le jour ou l'amont
+# renomme la macro.
+RUN grep -q 'regparm(2)' /src/viogsf/vbam/gba/GBAcpu.h \
+ && sed -i 's/__attribute__((regparm(2)))//' /src/viogsf/vbam/gba/GBAcpu.h \
+ && ! grep -q 'regparm' /src/viogsf/vbam/gba/GBAcpu.h \
+ && echo "viogsf : attribut regparm neutralise"
 
 # EMU_COMPILE et EMU_LITTLE_ENDIAN sont exiges par emuconfig.h, qui refuse de
 # compiler sans : « Hi I forgot to set EMU_COMPILE ». Ce ne sont pas des
@@ -117,13 +135,42 @@ RUN cd /build \
       /src/ht/Core/m68k/m68kops.c /src/ht/Core/m68k/m68kcpu.c \
  && echo "Highly_Theoretical compile"
 
+# viogsf — le coeur Game Boy Advance, derive de VBA-M. C'est du C++, seul de
+# son espece ici : sa sortie audio est une classe abstraite dont l'hote fournit
+# l'implementation, ce qu'on ne fait pas depuis du C. gsf.cpp porte cette
+# implementation et n'expose au-dehors que des fonctions « extern "C" », que le
+# shim appelle comme les autres coeurs.
+#
+# La liste des sources vient de viogsf.pro, comme les autres viennent de leur
+# propre fichier projet.
+# DANS SON PROPRE DOSSIER. viogsf a un bios.cpp, Highly_Experimental un
+# bios.c : compiles cote a cote, le second objet ecrase le premier et l'edition
+# de liens reclame des symboles de BIOS PlayStation introuvables — une erreur
+# qui ne dit rien de sa cause. Un dossier par coeur supprime la question.
+RUN mkdir -p /build/gba && cd /build/gba \
+ && em++ -O2 -c -std=gnu++11 \
+      -I/src/viogsf/vbam -I/src/viogsf/vbam/common \
+      -I/src/viogsf/vbam/gba -I/src/viogsf/vbam/apu \
+      /src/viogsf/vbam/apu/Multi_Buffer.cpp \
+      /src/viogsf/vbam/apu/Gb_Oscs.cpp \
+      /src/viogsf/vbam/apu/Gb_Apu.cpp \
+      /src/viogsf/vbam/apu/Effects_Buffer.cpp \
+      /src/viogsf/vbam/apu/Blip_Buffer.cpp \
+      /src/viogsf/vbam/gba/Sound.cpp \
+      /src/viogsf/vbam/gba/GBA.cpp \
+      /src/viogsf/vbam/gba/GBA-thumb.cpp \
+      /src/viogsf/vbam/gba/GBA-arm.cpp \
+      /src/viogsf/vbam/gba/bios.cpp \
+      /src/gsf.cpp \
+ && echo "viogsf compile"
+
 # EXPORTED_FUNCTIONS n'est pas une liste de confort : tout ce qui n'y figure
 # pas est elague par l'editeur de liens, et l'absence ne se verrait qu'a
 # l'execution. Le garde-fou scripts/verify-wasm-abi.js relit cette liste depuis
 # la colle produite et la confronte aux appels de src/.
 RUN cd /build \
  && emcc -O2 -c -std=gnu99 -DEMU_COMPILE -DEMU_LITTLE_ENDIAN -I/src/psflib -I/src/he/Core -I/src/ht/Core /src/shim.c \
- && emcc -O2 *.o \
+ && em++ -O2 *.o gba/*.o \
       --use-port=zlib \
       -o /tmp/psf.js \
       -s WASM=1 \
