@@ -847,6 +847,12 @@ const FORMATS = [
   // contrairement aux formats PlayStation.
   'gsf',
   'minigsf',
+  // Meme logique pour la DS : le .2sflib porte la banque de sons et le
+  // moteur audio du jeu, chaque .mini2sf n'en designe qu'une sequence. Le
+  // coeur est DeSmuME, qui emule les DEUX processeurs ARM de la console —
+  // c'est le plus lourd du module, mais il ne reclame aucune image exterieure.
+  '2sf',
+  'mini2sf',
   // --- Pistes de disque, lues par src/players/VGMStreamPlayer.js ---
   //
   // « xa » est du CD-ROM XA ADPCM dans un enrobage RIFF/CDXA : vgmstream le

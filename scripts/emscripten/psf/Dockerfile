@@ -37,6 +37,7 @@ ARG PSFLIB_COMMIT=95509e0c6f13d769593bbf51a1b0e0efdc355ba1
 ARG HE_COMMIT=ccffd7b5f21ab8feaed78544b677e7da0ad43ce7
 ARG HT_COMMIT=2998a4bf550949cd2daee249e725a64462cf15e0
 ARG VIOGSF_COMMIT=6c43a9926a6a85fbb736ea8f5f7f6c4f59ed3d64
+ARG VIO2SF_COMMIT=cbad66408b72d3bdc9f6c5ba724fe3e17f996865
 
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
@@ -46,16 +47,20 @@ RUN git clone https://github.com/kode54/psflib.git psflib \
  && git clone https://github.com/kode54/Highly_Experimental.git he \
  && git clone https://github.com/kode54/Highly_Theoretical.git ht \
  && git clone https://github.com/kode54/viogsf.git viogsf \
+ && git clone -b splayer-mod https://github.com/RGBA-CRT/vio2sf-fork.git vio2sf \
  && git -C psflib checkout "$PSFLIB_COMMIT" \
  && git -C he checkout "$HE_COMMIT" \
  && git -C ht checkout "$HT_COMMIT" \
  && git -C viogsf checkout "$VIOGSF_COMMIT" \
- && for d in psflib he ht viogsf; do \
+ && git -C vio2sf checkout "$VIO2SF_COMMIT" \
+ && for d in psflib he ht viogsf vio2sf; do \
       printf '%-10s %s\n' "$d" "$(git -C $d rev-parse HEAD)"; \
     done | tee /tmp/provenance.txt
 
 COPY shim.c /src/shim.c
 COPY gsf.cpp /src/gsf.cpp
+COPY ds.c /src/ds.c
+COPY wincompat.h /src/compat/wincompat.h
 
 # regparm EST UN ATTRIBUT x86, et GBAcpu.h ne le conditionne qu'a __GNUC__ —
 # que clang satisfait. Sur wasm, chaque fonction ainsi decoree fait echouer la
@@ -164,13 +169,69 @@ RUN mkdir -p /build/gba && cd /build/gba \
       /src/gsf.cpp \
  && echo "viogsf compile"
 
+# vio2sf - le coeur Nintendo DS, derive de DeSmuME. Deux processeurs ARM
+# emules : de loin le plus lourd de ce module.
+#
+# DANS SON PROPRE DOSSIER, pour la raison deja rencontree avec viogsf : ce
+# coeur a un bios.c, Highly_Experimental aussi, et le second objet ecraserait
+# le premier en silence.
+#
+# Le coeur compile sans aucune retouche, ce qui est rare. Seul le pilote
+# reclame un geste, explique plus bas.
+RUN mkdir -p /build/ds && cd /build/ds \
+ && emcc -O2 -c -std=gnu99 -fomit-frame-pointer \
+      -I/src/vio2sf/src/vio2sf -I/src/vio2sf/src/vio2sf/desmume \
+      --use-port=zlib \
+      /src/vio2sf/src/vio2sf/desmume/armcpu.c \
+      /src/vio2sf/src/vio2sf/desmume/arm_instructions.c \
+      /src/vio2sf/src/vio2sf/desmume/barray.c \
+      /src/vio2sf/src/vio2sf/desmume/bios.c \
+      /src/vio2sf/src/vio2sf/desmume/cp15.c \
+      /src/vio2sf/src/vio2sf/desmume/FIFO.c \
+      /src/vio2sf/src/vio2sf/desmume/GPU.c \
+      /src/vio2sf/src/vio2sf/desmume/isqrt.c \
+      /src/vio2sf/src/vio2sf/desmume/matrix.c \
+      /src/vio2sf/src/vio2sf/desmume/mc.c \
+      /src/vio2sf/src/vio2sf/desmume/MMU.c \
+      /src/vio2sf/src/vio2sf/desmume/NDSSystem.c \
+      /src/vio2sf/src/vio2sf/desmume/resampler.c \
+      /src/vio2sf/src/vio2sf/desmume/state.c \
+      /src/vio2sf/src/vio2sf/desmume/thumb_instructions.c \
+ && em++ -O2 -c -std=gnu++11 -fno-rtti -fno-exceptions \
+      -I/src/vio2sf/src/vio2sf -I/src/vio2sf/src/vio2sf/desmume \
+      /src/vio2sf/src/vio2sf/desmume/SPU.cpp \
+ && echo "vio2sf : coeur DS compile"
+
+# windows.h, dans drvimpl.c, ne sert qu'a des typedefs et aux trois appels de
+# trace de dlog(). wincompat.h les fournit.
+#
+# Pourquoi ce detour est necessaire et non cosmetique : le xsfc.h de vio2sf
+# est entierement enferme dans un #ifdef __cplusplus, donc VIDE en C.
+# tagget.h, qui l'inclut, compte malgre tout sur DWORD, BYTE et _strnicmp :
+# c'etait windows.h, inclus avant lui, qui les apportait.
+#
+# Le grep encadre le sed. Si l'amont retire cette ligne, la construction
+# s'arrete ici plutot que de compiler un pilote qu'on croirait adapte.
+RUN grep -q "^#include <windows.h>" /src/vio2sf/src/plugins/vio2sf/drvimpl.c \
+ && sed -i 's|^#include <windows.h>|#include "wincompat.h"|' \
+      /src/vio2sf/src/plugins/vio2sf/drvimpl.c \
+ && cd /build/ds \
+ && emcc -O2 -c -std=gnu99 -fomit-frame-pointer \
+      -I/src/compat \
+      -I/src/vio2sf/src/vio2sf -I/src/vio2sf/src/vio2sf/desmume \
+      -I/src/vio2sf/src/plugins/xsfc -I/src/vio2sf/src/plugins/vio2sf \
+      --use-port=zlib \
+      /src/vio2sf/src/plugins/vio2sf/drvimpl.c \
+ && emcc -O2 -c -std=gnu99 /src/ds.c \
+ && echo "vio2sf : pilote 2SF compile"
+
 # EXPORTED_FUNCTIONS n'est pas une liste de confort : tout ce qui n'y figure
 # pas est elague par l'editeur de liens, et l'absence ne se verrait qu'a
 # l'execution. Le garde-fou scripts/verify-wasm-abi.js relit cette liste depuis
 # la colle produite et la confronte aux appels de src/.
 RUN cd /build \
  && emcc -O2 -c -std=gnu99 -DEMU_COMPILE -DEMU_LITTLE_ENDIAN -I/src/psflib -I/src/he/Core -I/src/ht/Core /src/shim.c \
- && em++ -O2 *.o gba/*.o \
+ && em++ -O2 *.o gba/*.o ds/*.o \
       --use-port=zlib \
       -o /tmp/psf.js \
       -s WASM=1 \
