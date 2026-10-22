@@ -74,7 +74,7 @@ const RESERVEES_AUX_AUTRES_MOTEURS = [
   // PSFPlayer — doit suivre ses fileExtensions, que verify-wasm-abi.js
   // confronte a cette liste : elle avait deja derive deux fois.
   'psf', 'minipsf', 'psf2', 'minipsf2', 'ssf', 'minissf', 'dsf', 'minidsf',
-  'gsf', 'minigsf', '2sf', 'mini2sf',
+  'gsf', 'minigsf', '2sf', 'mini2sf', 'ncsf', 'minincsf',
   // NativeAudioPlayer
   'aac', 'flac', 'm4a', 'mp3', 'oga', 'ogg', 'opus', 'wav', 'webm',
   // VGMPlayer
