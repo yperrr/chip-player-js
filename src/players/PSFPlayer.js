@@ -21,7 +21,8 @@ import autoBind from 'auto-bind';
 // l'etiquette _lib du morceau.
 const fileExtensions = ['psf', 'minipsf', 'psf2', 'minipsf2',
                         'ssf', 'minissf', 'dsf', 'minidsf',
-                        'gsf', 'minigsf'];
+                        'gsf', 'minigsf',
+                        '2sf', 'mini2sf'];
 
 const MOUNTPOINT = '/psf';
 
@@ -31,12 +32,14 @@ const TYPE_PSF2 = 0x02;
 const TYPE_SSF = 0x11;
 const TYPE_DSF = 0x12;
 const TYPE_GSF = 0x22;
+const TYPE_2SF = 0x24;
 const TYPES_CONNUS = {
   [TYPE_PSF1]: 'PlayStation',
   [TYPE_PSF2]: 'PlayStation 2',
   [TYPE_SSF]: 'Sega Saturn',
   [TYPE_DSF]: 'Dreamcast',
   [TYPE_GSF]: 'Game Boy Advance',
+  [TYPE_2SF]: 'Nintendo DS',
 };
 
 // Les deux formats PlayStation passent par le MEME coeur, et exigent donc la

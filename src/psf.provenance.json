@@ -1,13 +1,14 @@
 {
-  "bibliotheque": "psflib + Highly_Experimental + Highly_Theoretical + viogsf",
-  "licence": "psflib : MIT. Highly_Experimental et Highly_Theoretical : voir Readme.txt de chaque depot (Neill Corlett, Christopher Snowhill). viogsf : GPL, derive de VBA-M (voir vbam/License.txt et gpl.txt).",
+  "bibliotheque": "psflib + Highly_Experimental + Highly_Theoretical + viogsf + vio2sf",
+  "licence": "psflib : MIT. Highly_Experimental et Highly_Theoretical : voir Readme.txt de chaque depot (Neill Corlett, Christopher Snowhill). viogsf : GPL, derive de VBA-M (voir vbam/License.txt et gpl.txt). vio2sf : GPL, derive de DeSmuME (fork RGBA-CRT).",
   "sources": {
     "psflib": "https://github.com/kode54/psflib @ 95509e0c6f13d769593bbf51a1b0e0efdc355ba1",
     "Highly_Experimental": "https://github.com/kode54/Highly_Experimental @ ccffd7b5f21ab8feaed78544b677e7da0ad43ce7",
     "Highly_Theoretical": "https://github.com/kode54/Highly_Theoretical @ 2998a4bf550949cd2daee249e725a64462cf15e0",
-    "viogsf": "https://github.com/kode54/viogsf @ 6c43a9926a6a85fbb736ea8f5f7f6c4f59ed3d64"
+    "viogsf": "https://github.com/kode54/viogsf @ 6c43a9926a6a85fbb736ea8f5f7f6c4f59ed3d64",
+    "vio2sf": "https://github.com/RGBA-CRT/vio2sf-fork @ cbad66408b72d3bdc9f6c5ba724fe3e17f996865 (branche splayer-mod)"
   },
-  "machines": "Saturn (68000 + SCSP), Dreamcast (ARM7 + AICA) et Game Boy Advance (ARM7TDMI + APU, par viogsf) : operationnels, sans rien reclamer. PlayStation (PSF1, R3000 + SPU) et PlayStation 2 (PSF2, IOP) : operationnels A CONDITION qu une image HE BIOS soit fournie - la MEME pour les deux. mkhebios est compile dans le module : l utilisateur depose un BIOS de PlayStation 2 de 4 Mo et la conversion se fait a la volee. Le PSF2 ne televerse pas de programme : il expose une arborescence de fichiers par psf2fs, que le code emule lit a la demande (psx_set_readfile). Le GSF, lui, reconstitue une cartouche a partir des segments de la chaine.",
+  "machines": "Saturn (68000 + SCSP), Dreamcast (ARM7 + AICA) et Game Boy Advance (ARM7TDMI + APU, par viogsf) : operationnels, sans rien reclamer. PlayStation (PSF1, R3000 + SPU) et PlayStation 2 (PSF2, IOP) : operationnels A CONDITION qu une image HE BIOS soit fournie - la MEME pour les deux. mkhebios est compile dans le module : l utilisateur depose un BIOS de PlayStation 2 de 4 Mo et la conversion se fait a la volee. Le PSF2 ne televerse pas de programme : il expose une arborescence de fichiers par psf2fs, que le code emule lit a la demande (psx_set_readfile). Le GSF, lui, reconstitue une cartouche a partir des segments de la chaine. Nintendo DS (2SF, ARM9 + ARM7 + SPU, par vio2sf) : operationnel, sans rien reclamer. Ce coeur est a part sur un point : il analyse le conteneur et suit la chaine _lib LUI-MEME, par son propre code, la ou les autres recoivent des segments decoupes par psflib. Le shim ne l appelle donc pas comme les autres (voir ds.c) et psflib ne sert, pour ce format, qu a recolter les etiquettes.",
   "construction": {
     "recette": "scripts/emscripten/psf/Dockerfile",
     "image": "emscripten/emsdk:6.0.0",
@@ -15,7 +16,7 @@
   },
   "shim": {
     "fichier": "scripts/emscripten/psf/shim.c",
-    "note": "psflib ne se pilote que par rappels C. Les ecrire ici evite de fabriquer des pointeurs de fonction depuis JavaScript et de faire traverser la frontiere a chaque octet lu. gsf.cpp s ajoute pour viogsf, qui est en C++ : sa sortie audio est une classe abstraite, qu on n implemente pas depuis du C."
+    "note": "psflib ne se pilote que par rappels C. Les ecrire ici evite de fabriquer des pointeurs de fonction depuis JavaScript et de faire traverser la frontiere a chaque octet lu. gsf.cpp s ajoute pour viogsf, qui est en C++ : sa sortie audio est une classe abstraite, qu on n implemente pas depuis du C. ds.c s ajoute pour vio2sf : il fournit le rappel xsf_get_lib que le pilote reclame, servi depuis le systeme de fichiers d emscripten ou PSFPlayer a deja depose la chaine complete."
   },
   "colle": {
     "fichier": "src/psf.js",
@@ -24,7 +25,7 @@
   },
   "wasm": {
     "fichier": "src/psf.wasm",
-    "octets": 1384081,
-    "sha256": "35dfbc5d4b763d29abcf0cd84974221c99a4e5d578ed6855fda3292183714bf9"
+    "octets": 1588556,
+    "sha256": "ae6d94e43c83ed4eff722b7b4d6943a89c1f261f00f5315a3221456f68255cef"
   }
 }

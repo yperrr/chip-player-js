@@ -47,11 +47,18 @@ int gsfx_charger_segment(void *, const uint8_t *exe, size_t taille);
 int gsfx_demarrer(void *);
 int gsfx_rendre(void *, int16_t *sortie, int trames);
 
+/* ds.c : pilote 2SF, au-dessus du coeur DeSmuME de vio2sf. */
+void ds2sf_dossier(const char *chemin);
+int  ds2sf_demarrer(const uint8_t *fichier, unsigned taille);
+int  ds2sf_rendre(int16_t *sortie, int trames);
+void ds2sf_arreter(void);
+
 #define PSFX_PSF1 0x01
 #define PSFX_PSF2 0x02
 #define PSFX_SSF  0x11
 #define PSFX_DSF  0x12
 #define PSFX_GSF  0x22
+#define PSFX_2SF  0x24
 
 /* Les deux cœurs rendent du 16 bits stéréo à cette cadence, sans réglage. */
 #define PSFX_RATE 44100
@@ -226,6 +233,35 @@ static int cb_load_gsf(void *ctx, const uint8_t *exe, size_t exe_size,
   return gsfx_charger_segment(G.gsf, exe, exe_size) == 0 ? 0 : -1;
 }
 
+/*
+ * Jette les segments. Pour le 2SF, psflib n'est appele que pour recolter
+ * les etiquettes : le chargement proprement dit est l'affaire de vio2sf.
+ */
+static int cb_load_rien(void *ctx, const uint8_t *exe, size_t exe_size,
+                        const uint8_t *reserved, size_t reserved_size) {
+  (void)ctx; (void)exe; (void)exe_size; (void)reserved; (void)reserved_size;
+  return 0;
+}
+
+/*
+ * Lit un fichier entier du systeme de fichiers virtuel. Le 2SF en a besoin
+ * brut : son pilote veut le conteneur, pas des segments decoupes.
+ */
+static uint8_t *lire_tout(const char *chemin, size_t *taille) {
+  FILE *f = fopen(chemin, "rb");
+  if (!f) return NULL;
+  if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return NULL; }
+  long n = ftell(f);
+  if (n <= 0 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return NULL; }
+  uint8_t *buf = malloc((size_t)n);
+  if (!buf) { fclose(f); return NULL; }
+  size_t lus = fread(buf, 1, (size_t)n, f);
+  fclose(f);
+  if (lus != (size_t)n) { free(buf); return NULL; }
+  *taille = (size_t)n;
+  return buf;
+}
+
 static int cb_load_sdsf(void *ctx, const uint8_t *exe, size_t exe_size,
                         const uint8_t *reserved, size_t reserved_size) {
   (void)ctx; (void)reserved; (void)reserved_size;
@@ -268,6 +304,7 @@ void psfx_close(void) {
   G.psf1_vide = 1;
   if (G.psf2fs) { psf2fs_delete(G.psf2fs); G.psf2fs = NULL; }
   if (G.gsf) { gsfx_liberer(G.gsf); G.gsf = NULL; }
+  if (G.type == PSFX_2SF) ds2sf_arreter();
   free(G.tags); G.tags = NULL; G.tags_len = G.tags_cap = 0;
   G.ouvert = 0;
   G.type = 0;
@@ -280,6 +317,36 @@ void psfx_close(void) {
 int psfx_open(const char *chemin, int type) {
   psfx_close();
   G.type = (uint8_t)type;
+
+  /*
+   * Le 2SF prend un chemin a part, et c'est voulu : vio2sf analyse le
+   * conteneur et suit la chaine _lib tout seul (voir ds.c). psflib ne sert
+   * donc ici qu'a recolter les etiquettes, et le pilote recoit le fichier
+   * brut. Passer par les deux chargements superposerait deux fois la ROM.
+   */
+  if (type == PSFX_2SF) {
+    int r = psf_load(chemin, &CB, (uint8_t)type,
+                     cb_load_rien, NULL,
+                     cb_info, NULL, 0, NULL, NULL);
+    if (r < 0) { psfx_close(); return -4; }
+
+    /* Le pilote ouvre les .2sflib par leur nom nu : il lui faut le dossier. */
+    char dossier[1024];
+    snprintf(dossier, sizeof dossier, "%s", chemin);
+    char *fin = strrchr(dossier, (int)0x2F);
+    if (fin) *fin = 0; else dossier[0] = 0;
+    ds2sf_dossier(dossier);
+
+    size_t taille = 0;
+    uint8_t *octets = lire_tout(chemin, &taille);
+    if (!octets) { psfx_close(); return -12; }
+    int rc = ds2sf_demarrer(octets, (unsigned)taille);
+    free(octets);
+    if (rc != 0) { psfx_close(); return -13; }
+
+    G.ouvert = 1;
+    return 0;
+  }
 
   if (type == PSFX_PSF1) {
     /*
@@ -408,6 +475,9 @@ int psfx_render(int16_t *buf, int demandes) {
   if (!G.ouvert || demandes <= 0) return -1;
   uint32_t n = (uint32_t)demandes;
   int32_t r;
+  if (G.type == PSFX_2SF) {
+    return ds2sf_rendre(buf, demandes);
+  }
   if (G.type == PSFX_GSF) {
     return gsfx_rendre(G.gsf, buf, demandes);
   }
