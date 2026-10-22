@@ -853,6 +853,13 @@ const FORMATS = [
   // c'est le plus lourd du module, mais il ne reclame aucune image exterieure.
   '2sf',
   'mini2sf',
+  // Le NCSF est l'autre moitie de la DS, et ne se ramene pas au 2SF : il ne
+  // transporte aucun code, mais le SDAT du jeu — sequences, banques,
+  // formes d'onde — que SSEQPlayer interprete sans rien emuler. Le
+  // « ncsflib » porte ce SDAT et n'est donc pas declare : c'est une
+  // dependance, pas un morceau.
+  'ncsf',
+  'minincsf',
   // --- Pistes de disque, lues par src/players/VGMStreamPlayer.js ---
   //
   // « xa » est du CD-ROM XA ADPCM dans un enrobage RIFF/CDXA : vgmstream le

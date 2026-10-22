@@ -47,6 +47,14 @@ int gsfx_charger_segment(void *, const uint8_t *exe, size_t taille);
 int gsfx_demarrer(void *);
 int gsfx_rendre(void *, int16_t *sortie, int trames);
 
+/* ncsf.cpp : lecteur NCSF, au-dessus de SSEQPlayer. */
+void *ncsfx_creer(void);
+void ncsfx_liberer(void *);
+int  ncsfx_charger(void *, const uint8_t *exe, size_t exe_size,
+                   const uint8_t *resv, size_t resv_size);
+int  ncsfx_demarrer(void *, int cadence);
+int  ncsfx_rendre(void *, int16_t *sortie, int trames);
+
 /* ds.c : pilote 2SF, au-dessus du coeur DeSmuME de vio2sf. */
 void ds2sf_dossier(const char *chemin);
 int  ds2sf_demarrer(const uint8_t *fichier, unsigned taille);
@@ -59,6 +67,7 @@ void ds2sf_arreter(void);
 #define PSFX_DSF  0x12
 #define PSFX_GSF  0x22
 #define PSFX_2SF  0x24
+#define PSFX_NCSF 0x25
 
 /* Les deux cœurs rendent du 16 bits stéréo à cette cadence, sans réglage. */
 #define PSFX_RATE 44100
@@ -84,6 +93,7 @@ typedef struct {
    * a sa place. La chaine de bibliotheques se superpose dans ce meme systeme
    * de fichiers, les fichiers du morceau recouvrant ceux de la bibliotheque. */
   void *psf2fs;
+  void *ncsf;
   /* Game Boy Advance : l'etat vit dans gsf.cpp, derriere un pointeur opaque. */
   void *gsf;
   char *tags;        /* « nom=valeur\n » concaténés */
@@ -237,6 +247,17 @@ static int cb_load_gsf(void *ctx, const uint8_t *exe, size_t exe_size,
  * Jette les segments. Pour le 2SF, psflib n'est appele que pour recolter
  * les etiquettes : le chargement proprement dit est l'affaire de vio2sf.
  */
+/*
+ * Un maillon NCSF. Contrairement aux autres formats, la section RESERVEE
+ * porte ici de l information utile — le numero de sequence —, d ou le
+ * passage des quatre arguments a l adaptateur.
+ */
+static int cb_load_ncsf(void *ctx, const uint8_t *exe, size_t exe_size,
+                        const uint8_t *reserved, size_t reserved_size) {
+  (void)ctx;
+  return ncsfx_charger(G.ncsf, exe, exe_size, reserved, reserved_size);
+}
+
 static int cb_load_rien(void *ctx, const uint8_t *exe, size_t exe_size,
                         const uint8_t *reserved, size_t reserved_size) {
   (void)ctx; (void)exe; (void)exe_size; (void)reserved; (void)reserved_size;
@@ -304,6 +325,7 @@ void psfx_close(void) {
   G.psf1_vide = 1;
   if (G.psf2fs) { psf2fs_delete(G.psf2fs); G.psf2fs = NULL; }
   if (G.gsf) { gsfx_liberer(G.gsf); G.gsf = NULL; }
+  if (G.ncsf) { ncsfx_liberer(G.ncsf); G.ncsf = NULL; }
   if (G.type == PSFX_2SF) ds2sf_arreter();
   free(G.tags); G.tags = NULL; G.tags_len = G.tags_cap = 0;
   G.ouvert = 0;
@@ -399,6 +421,10 @@ int psfx_open(const char *chemin, int type) {
      * cartouche, contrairement aux coeurs PlayStation. */
     G.gsf = gsfx_creer();
     if (!G.gsf) return -2;
+  } else if (type == PSFX_NCSF) {
+    /* Rien a initialiser non plus : le SDAT se suffit a lui-meme. */
+    G.ncsf = ncsfx_creer();
+    if (!G.ncsf) return -2;
   } else if (type == PSFX_SSF || type == PSFX_DSF) {
     if (!sega_pret) { if (sega_init() != 0) return -1; sega_pret = 1; }
     uint8_t v = (type == PSFX_SSF) ? 1 : 2;   /* 1 = Saturn, 2 = Dreamcast */
@@ -419,7 +445,8 @@ int psfx_open(const char *chemin, int type) {
   psf_load_callback charger =
       (type == PSFX_PSF1) ? cb_load_psf1 :
       (type == PSFX_PSF2) ? psf2fs_load_callback :
-      (type == PSFX_GSF) ? cb_load_gsf : cb_load_sdsf;
+      (type == PSFX_GSF) ? cb_load_gsf :
+      (type == PSFX_NCSF) ? cb_load_ncsf : cb_load_sdsf;
   void *ctx_charger = (type == PSFX_PSF2) ? G.psf2fs : NULL;
 
   int r = psf_load(chemin, &CB, (uint8_t)type,
@@ -451,6 +478,11 @@ int psfx_open(const char *chemin, int type) {
   } else if (type == PSFX_GSF) {
     /* Les segments sont en place : on charge la cartouche et on demarre. */
     if (gsfx_demarrer(G.gsf) != 0) { psfx_close(); return -9; }
+  } else if (type == PSFX_NCSF) {
+    /* Le SDAT est complet : on ouvre la sequence demandee. La cadence du
+     * module lui est imposee, SSEQPlayer reechantillonne lui-meme. */
+    int rc = ncsfx_demarrer(G.ncsf, PSFX_RATE);
+    if (rc != 0) { psfx_close(); return -14; }
   } else {
     if (G.prog_size < 4) { psfx_close(); return -5; }
     if (sega_upload_program(G.state, G.prog, (uint32_t)G.prog_size) != 0) {
@@ -477,6 +509,9 @@ int psfx_render(int16_t *buf, int demandes) {
   int32_t r;
   if (G.type == PSFX_2SF) {
     return ds2sf_rendre(buf, demandes);
+  }
+  if (G.type == PSFX_NCSF) {
+    return ncsfx_rendre(G.ncsf, buf, demandes);
   }
   if (G.type == PSFX_GSF) {
     return gsfx_rendre(G.gsf, buf, demandes);

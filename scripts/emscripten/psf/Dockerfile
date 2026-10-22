@@ -38,6 +38,7 @@ ARG HE_COMMIT=ccffd7b5f21ab8feaed78544b677e7da0ad43ce7
 ARG HT_COMMIT=2998a4bf550949cd2daee249e725a64462cf15e0
 ARG VIOGSF_COMMIT=6c43a9926a6a85fbb736ea8f5f7f6c4f59ed3d64
 ARG VIO2SF_COMMIT=cbad66408b72d3bdc9f6c5ba724fe3e17f996865
+ARG SSEQ_COMMIT=77222d3657adff358fb4e610d3e56bb7ada8ec24
 
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
@@ -48,12 +49,14 @@ RUN git clone https://github.com/kode54/psflib.git psflib \
  && git clone https://github.com/kode54/Highly_Theoretical.git ht \
  && git clone https://github.com/kode54/viogsf.git viogsf \
  && git clone -b splayer-mod https://github.com/RGBA-CRT/vio2sf-fork.git vio2sf \
+ && git clone https://github.com/kode54/SSEQPlayer.git sseq \
  && git -C psflib checkout "$PSFLIB_COMMIT" \
  && git -C he checkout "$HE_COMMIT" \
  && git -C ht checkout "$HT_COMMIT" \
  && git -C viogsf checkout "$VIOGSF_COMMIT" \
  && git -C vio2sf checkout "$VIO2SF_COMMIT" \
- && for d in psflib he ht viogsf vio2sf; do \
+ && git -C sseq checkout "$SSEQ_COMMIT" \
+ && for d in psflib he ht viogsf vio2sf sseq; do \
       printf '%-10s %s\n' "$d" "$(git -C $d rev-parse HEAD)"; \
     done | tee /tmp/provenance.txt
 
@@ -61,6 +64,7 @@ COPY shim.c /src/shim.c
 COPY gsf.cpp /src/gsf.cpp
 COPY ds.c /src/ds.c
 COPY wincompat.h /src/compat/wincompat.h
+COPY ncsf.cpp /src/ncsf.cpp
 
 # regparm EST UN ATTRIBUT x86, et GBAcpu.h ne le conditionne qu'a __GNUC__ —
 # que clang satisfait. Sur wasm, chaque fonction ainsi decoree fait echouer la
@@ -225,13 +229,29 @@ RUN grep -q "^#include <windows.h>" /src/vio2sf/src/plugins/vio2sf/drvimpl.c \
  && emcc -O2 -c -std=gnu99 /src/ds.c \
  && echo "vio2sf : pilote 2SF compile"
 
+# SSEQPlayer - le lecteur NCSF. Pas un emulateur : il interprete le SDAT de
+# la console directement. Il compile sans la moindre retouche, et pese une
+# fraction du coeur DS.
+#
+# -fexceptions N EST PAS FACULTATIF ICI. SSEQPlayer n a pas d autre canal
+# d erreur que std::runtime_error, levee par chaque structure malformee.
+# Sans capture possible, un seul fichier douteux ferait avorter le module
+# ENTIER - donc toute lecture, tous formats confondus. Voir ncsf.cpp.
+#
+# Dossier separe, comme les autres coeurs : SDAT.cpp et consorts portent des
+# noms trop communs pour cohabiter avec le reste dans /build.
+RUN mkdir -p /build/ncsf && cd /build/ncsf \
+ && em++ -O2 -c -std=c++17 -w -fexceptions -I/src/sseq /src/sseq/*.cpp \
+ && em++ -O2 -c -std=c++17 -w -fexceptions -I/src/sseq /src/ncsf.cpp \
+ && echo "SSEQPlayer : lecteur NCSF compile"
+
 # EXPORTED_FUNCTIONS n'est pas une liste de confort : tout ce qui n'y figure
 # pas est elague par l'editeur de liens, et l'absence ne se verrait qu'a
 # l'execution. Le garde-fou scripts/verify-wasm-abi.js relit cette liste depuis
 # la colle produite et la confronte aux appels de src/.
 RUN cd /build \
  && emcc -O2 -c -std=gnu99 -DEMU_COMPILE -DEMU_LITTLE_ENDIAN -I/src/psflib -I/src/he/Core -I/src/ht/Core /src/shim.c \
- && em++ -O2 *.o gba/*.o ds/*.o \
+ && em++ -O2 -fexceptions *.o gba/*.o ds/*.o ncsf/*.o \
       --use-port=zlib \
       -o /tmp/psf.js \
       -s WASM=1 \

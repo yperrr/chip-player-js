@@ -22,7 +22,8 @@ import autoBind from 'auto-bind';
 const fileExtensions = ['psf', 'minipsf', 'psf2', 'minipsf2',
                         'ssf', 'minissf', 'dsf', 'minidsf',
                         'gsf', 'minigsf',
-                        '2sf', 'mini2sf'];
+                        '2sf', 'mini2sf',
+                        'ncsf', 'minincsf'];
 
 const MOUNTPOINT = '/psf';
 
@@ -33,6 +34,7 @@ const TYPE_SSF = 0x11;
 const TYPE_DSF = 0x12;
 const TYPE_GSF = 0x22;
 const TYPE_2SF = 0x24;
+const TYPE_NCSF = 0x25;
 const TYPES_CONNUS = {
   [TYPE_PSF1]: 'PlayStation',
   [TYPE_PSF2]: 'PlayStation 2',
@@ -40,6 +42,10 @@ const TYPES_CONNUS = {
   [TYPE_DSF]: 'Dreamcast',
   [TYPE_GSF]: 'Game Boy Advance',
   [TYPE_2SF]: 'Nintendo DS',
+  // Meme console que le 2SF, moteur tout autre : le NCSF ne rejoue pas la
+  // DS, il interprete ses banques SDAT. Les deux coexistent dans le
+  // catalogue, parfois pour le meme jeu.
+  [TYPE_NCSF]: 'Nintendo DS',
 };
 
 // Les deux formats PlayStation passent par le MEME coeur, et exigent donc la
