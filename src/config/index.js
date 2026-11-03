@@ -188,7 +188,14 @@ const FORMATS = [
   //               fichiers voisins : inapplicable ici.
   //
   //   DECLAREES SANS FICHIER SOUS LA MAIN, leur codec etant desormais present :
-  //     lac3 laac lasf lflac lmp3 lmp4 lopus lwma xwma
+  //     lac3 laac lflac lmp3 lmp4 lopus xwma
+  //
+  //   MESUREES DEPUIS, le 2026-11-03 : lasf et lwma. Ce sont par definition de
+  //   l'ASF et du WMA — le prefixe « l » de vgmstream ne designe qu'un fichier
+  //   a boucler, pas un autre format — de sorte qu'un wmav2 de 3 s renomme
+  //   suffit a les eprouver : les deux s'ouvrent par le meta FFmpeg/ASF et
+  //   rendent le meme signal que ffmpeg. « xwma » reste, lui, non mesure : ce
+  //   n'est pas la meme chose, mais du WMA enrobe de RIFF.
   //
   // Et quatre collisions de nom, les plus trompeuses : « psf », « ssf »,
   // « dsf » et « gsf » designent chez vgmstream de tout autres formats que les
@@ -876,6 +883,14 @@ const FORMATS = [
   'xa',
   'swp',
   'pcm',
+  //
+  // « wma » n'est pas un flux de console, mais il arrive par la meme porte :
+  // FFmpeg, present dans la recette depuis le 2026-10-16, en fournit le
+  // decodeur. vgmstream ne DECLARE pas cette extension — il laisse celles de
+  // la bureautique audio aux lecteurs de bureau — alors qu'il la lit. Le
+  // navigateur, lui, ne la lit pas. Voir src/vgmstream-extensions-hors-liste.js
+  // pour la mesure.
+  'wma',
 ];
 const SOUNDFONT_MOUNTPOINT = '/soundfonts';
 const SOUNDFONTS = [

@@ -1,6 +1,7 @@
 import Player from './Player.js';
 import autoBind from 'auto-bind';
 import EXTENSIONS_VGMSTREAM from '../vgmstream-extensions.json';
+import EXTENSIONS_HORS_LISTE from '../vgmstream-extensions-hors-liste';
 
 // La liste vient de la bibliotheque elle-meme : elle est relevee a la
 // construction du wasm par scripts/emscripten/vgmstream/, en appelant
@@ -13,16 +14,23 @@ import EXTENSIONS_VGMSTREAM from '../vgmstream-extensions.json';
 // vgmstream partage avec un moteur plus specialise — spc, vgm, mus, imf, med,
 // ams, dbm, stm, stx, sfx, oga — reviennent donc naturellement a celui-ci.
 // C'est le role d'un moteur generaliste : prendre ce que personne ne reclame.
-// Extensions que vgmstream NE DECLARE PAS mais que _tenterCdDaNu sait lire.
 //
 // vgmstream-extensions.json est produit par la recette de construction, a
 // partir de la bibliotheque elle-meme, et figure dans la provenance : on ne le
 // retouche pas a la main, sans quoi il mentirait des la prochaine
-// reconstruction. Les extensions que seuls NOS replis couvrent s'ajoutent donc
-// ici. « pcm » et « xa », eux, y sont deja.
+// reconstruction. Ce qui s'ajoute a cette liste se declare donc a cote, et
+// pour deux raisons distinctes.
+//
+// 1. Les extensions que vgmstream NE DECLARE PAS et que seuls NOS replis
+//    couvrent : _tenterCdDaNu et son .txth. « pcm » et « xa », eux, sont deja
+//    dans la liste de la bibliotheque.
 const EXTENSIONS_REPLI = ['swp'];
 
-const fileExtensions = [...EXTENSIONS_VGMSTREAM, ...EXTENSIONS_REPLI];
+// 2. Les extensions que la bibliotheque sait lire sans les revendiquer.
+//    vgmstream-extensions-hors-liste.js, partage avec
+//    scripts/duration-vgmstream.js pour que les deux ne derivent pas.
+const fileExtensions = [
+  ...EXTENSIONS_VGMSTREAM, ...EXTENSIONS_REPLI, ...EXTENSIONS_HORS_LISTE];
 
 // Un secteur de disque compact : 2352 octets, soit 588 trames de 16 bits
 // stereo — exactement 1/75 de seconde a 44 100 Hz. Un vidage de piste CD en

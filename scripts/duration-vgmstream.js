@@ -105,8 +105,18 @@ const extensions = (() => {
       // Liste absente : on garde la statique, un tracker mesure de travers
       // etant moins grave qu'une indexation qui s'arrete.
     }
+    // Et ce que notre build lit sans que la bibliotheque le declare : la
+    // meme liste que celle du lecteur, pour qu'une duree au catalogue
+    // continue de signifier « ce fichier s'ouvre ».
+    let horsListe = [];
+    try {
+      horsListe = require('../src/vgmstream-extensions-hors-liste');
+    } catch (e) {
+      // Module absent : on mesure moins, on ne mesure pas de travers.
+    }
     return new Set(
-      require('../src/vgmstream-extensions.json').filter(e => !exclues.has(e)));
+      [...require('../src/vgmstream-extensions.json'), ...horsListe]
+        .filter(e => !exclues.has(e)));
   } catch (e) {
     return new Set();
   }
