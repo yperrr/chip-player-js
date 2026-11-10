@@ -96,9 +96,17 @@ const BIOS_PS2_SIGNATURES = [
   { offset: 0x4A448, octets: '0000000009f8400021206002' },    // preamorçage PS2
 ];
 
-// Les deux coeurs rendent a cette cadence, sans reglage possible : c'est celle
-// des machines qu'ils simulent.
+// Cadence de sortie du moteur : celle de la machine simulee, sans reglage.
+//
+// PAS LA MEME POUR TOUTES. Highly_Experimental cadence le processeur son a
+// 33 868 800 Hz sur PlayStation et 36 864 000 Hz sur PlayStation 2, a 768
+// cycles par echantillon (Core/iop.c) : 44 100 Hz pour le PSF1, 48 000 Hz pour
+// le PSF2 — le SPU2 de la PS2 tourne a 48 kHz. Tout etait compte a 44 100 : les
+// PSF2 jouaient 8,8 % trop lentement, un demi-ton et demi trop bas, et
+// s'arretaient avant leur fin. Les autres coeurs rendent a 44 100 Hz.
 const TAUX_MOTEUR = 44100;
+const TAUX_PSF2 = 48000;
+const tauxDuType = type => (type === TYPE_PSF2 ? TAUX_PSF2 : TAUX_MOTEUR);
 
 // Duree retenue quand le fichier n'en declare pas. La plupart en declarent une
 // (etiquette `length`), les rips de cette famille etant soigneusement tagues.
@@ -493,7 +501,7 @@ export default class PSFPlayer extends Player {
 
     const c = this.core;
     const attendus = channels[0].length;
-    const pas = TAUX_MOTEUR / this.sampleRate;
+    const pas = tauxDuType(this._type) / this.sampleRate;
     let ecrits = 0;
     let fini = false;
 
@@ -578,7 +586,7 @@ export default class PSFPlayer extends Player {
     this._reste = 0; this._pos = 0; this._prec = null;
     // On ne reemule RIEN ici : c'est processAudioInner qui traversera la
     // distance, par tranches, sans bloquer la page. Voir MS_RATTRAPAGE_PAR_APPEL.
-    this._aRattraper = Math.round((cible / 1000) * TAUX_MOTEUR);
+    this._aRattraper = Math.round((cible / 1000) * tauxDuType(this._type));
     this._echantillons = Math.round((cible / 1000) * this.sampleRate);
   }
 
