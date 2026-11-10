@@ -51,3 +51,7 @@ COPY --from=build /build/build /frontend
 COPY --from=build /build/server /server
 COPY --from=build /build/scripts /scripts
 COPY --from=build /build/src/config /src/config
+# Le moteur de la famille PSF, tel quel : l'administration de la pile le fait
+# tourner sous Node pour ECOUTER les rips et en tirer une empreinte sonore
+# (alignement par empreinte). Le meme module que le lecteur, donc le meme son.
+COPY --from=build /build/src/psf.js /build/src/psf.wasm /moteurs/
