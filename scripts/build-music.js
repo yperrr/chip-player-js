@@ -7,7 +7,8 @@ const chalk = require('chalk');
 const { toArabic } = require('roman-numerals');
 const { FORMATS } = require('../src/config/index');
 const { parseMetadata } = require('./metadata-parsers');
-const durees = require('./duration-vgmstream');
+// Duree de chaque morceau, par le moteur qui le joue : voir durations.js.
+const durees = require('./durations');
 
 
 const program = new Command();
@@ -99,6 +100,13 @@ try {
     db.exec('ALTER TABLE music ADD COLUMN duration_ms INTEGER');
     console.log(chalk.cyan('Ajout de la colonne duration_ms a la table music.'));
   }
+  // Les points de boucle, quand le format en declare (vgmstream, VGM).
+  for (const c of ['loop_start_ms', 'loop_end_ms']) {
+    if (colonnes.length && !colonnes.some(x => x.name === c)) {
+      db.exec(`ALTER TABLE music ADD COLUMN ${c} INTEGER`);
+      console.log(chalk.cyan(`Ajout de la colonne ${c} a la table music.`));
+    }
+  }
 } catch (e) {
   // Table absente : le CREATE ci-dessous la cree avec la colonne.
 }
@@ -155,6 +163,9 @@ db.exec(`
     -- resultat. La distinction evite de remesurer a chaque passage un fichier
     -- dont personne ne sait donner la duree. Voir duration-vgmstream.js.
     duration_ms INTEGER,
+    -- Boucle du morceau, en ms depuis le debut, quand le format la declare.
+    loop_start_ms INTEGER,
+    loop_end_ms INTEGER,
     sort_order INTEGER DEFAULT 0,
     FOREIGN KEY(directory_id) REFERENCES directories(id),
     FOREIGN KEY(image_id) REFERENCES images(id)
@@ -262,9 +273,9 @@ const insertMusicStmt = db.prepare(`
     INSERT OR REPLACE INTO music (
       directory_id, filename, path, extension, song_id, title, artist, contributor, game, system, 
       copyright, file_size, mtime, raw_meta, image_id, text_ids, soundfont, md5,
-      duration_ms, sort_order
+      duration_ms, loop_start_ms, loop_end_ms, sort_order
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertDirStmt = db.prepare(`
@@ -623,8 +634,15 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
     // meme repasser : sinon les entrees deja au catalogue resteraient sans
     // duree a jamais, et la fonctionnalite n'aurait d'effet que sur les
     // nouveaux fichiers.
+    //
+    // Et un 0 aussi, quand une mesure existe pour ce format : c'etait l'ancien
+    // « tente, sans resultat », qu'on inscrivait aussi quand la mesure n'avait
+    // simplement pas pu avoir lieu — tout le catalogue de production en avait
+    // recu un, le wasm de vgmstream manquant a l'image. Desormais, un echec
+    // reel s'ecrit -1 et n'est plus repris.
     const dureeAReprendre = cached.duration_ms === null
-      || cached.duration_ms === undefined;
+      || cached.duration_ms === undefined
+      || (cached.duration_ms === 0 && durees.mesurable(ext));
     if (cached.mtime === stat.mtime.toISOString() && !dureeAReprendre) {
       // File hasn't changed.
       // Check if sort order needs update
@@ -721,15 +739,19 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
   // parseur en donne une — l'ID666 d'un .spc, par exemple —, sinon vgmstream,
   // qui la lit dans l'en-tete sans rien decoder. 0 signifie « tente, sans
   // resultat », et evite de remesurer indefiniment.
-  let dureeMs = 0;
+  //
+  // -1 : tente, sans resultat (ou aucune mesure pour ce format). null : le
+  // moteur n'a pas pu etre interroge — la colonne reste vide, donc a
+  // reprendre ; un wasm momentanement absent ne doit pas priver de duree tout
+  // le catalogue, definitivement.
+  let dureeMs = -1;
+  let boucle = null;
   if (typeof meta.duration === 'number' && meta.duration > 0) {
     dureeMs = Math.round(meta.duration * 1000);
-  } else if (durees.mesurable(extension)) {
-    // On garde le null tel quel : il signifie « le moteur n'a pas pu etre
-    // interroge » et laisse la colonne vide, donc a reprendre. Le coercer en 0
-    // marquerait le fichier « deja tente » — et un wasm momentanement absent
-    // priverait de duree tout le catalogue, definitivement.
-    dureeMs = durees.dureeMs(buffer, name);
+  } else {
+    const m = durees.mesurer(buffer, name, extension);
+    if (m === null) dureeMs = null;
+    else if (m && m.ms > 0) { dureeMs = m.ms; boucle = m.boucle; }
   }
 
   if (!options.dryrun) {
@@ -753,6 +775,8 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
       soundfont,
       md5,
       dureeMs,
+      boucle ? boucle.debutMs : null,
+      boucle ? boucle.finMs : null,
       sortOrder
     );
   }

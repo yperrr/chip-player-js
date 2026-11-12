@@ -45,6 +45,18 @@ const LIB_FORMAT_PTR = 4;
 const FMT_CHANNELS = 0;
 const FMT_SAMPLE_RATE = 4;
 const FMT_PLAY_SAMPLES = 64;   // int64
+// Les points de boucle, juste avant : stream_samples, loop_start, loop_end
+// (int64), puis loop_flag (bool). Controles par boucleVraisemblable() : une
+// structure qui aurait bouge ne doit rendre aucune boucle, pas une fausse.
+const FMT_STREAM_SAMPLES = 32; // int64
+const FMT_LOOP_START = 40;     // int64
+const FMT_LOOP_END = 48;       // int64
+const FMT_LOOP_FLAG = 56;      // bool
+
+// Ou trouver la colle et le wasm. Dans le depot : src/. Dans l'image de la
+// pile : CHIP_MOTEURS_DIR, un dossier a part dote d'un package.json de type
+// module — sous /app, la colle (un module ES) serait lue en CommonJS.
+const DOSSIER_MOTEURS = process.env.CHIP_MOTEURS_DIR || path.join(__dirname, '..', 'src');
 
 // EXTENSIONS QU'IL NE FAUT PAS MESURER AVEC VGMSTREAM
 //
@@ -134,8 +146,8 @@ function mesurable(ext) {
  */
 async function initialiser({ silencieux = false } = {}) {
   if (coeur || indisponible) return !!coeur;
-  const colle = path.join(__dirname, '..', 'src', 'vgmstream.js');
-  const binaire = path.join(__dirname, '..', 'src', 'vgmstream.wasm');
+  const colle = path.join(DOSSIER_MOTEURS, 'vgmstream.js');
+  const binaire = path.join(DOSSIER_MOTEURS, 'vgmstream.wasm');
   try {
     const mod = await import('file://' + colle.replace(/\\/g, '/'));
     // La colle est construite pour le navigateur (ENVIRONMENT_IS_WEB) et irait
@@ -173,8 +185,21 @@ function plausible(canaux, taux, echantillons) {
  * que null laisse la colonne vide et donc a reprendre.
  */
 function dureeMs(tampon, nomFichier) {
+  const m = mesure(tampon, nomFichier);
+  return m === null ? null : m.ms;
+}
+
+/**
+ * Comme dureeMs, avec la boucle quand le flux en declare une :
+ * { ms, boucle: { debutMs, finMs } | null }, ou null si vgmstream n'a pas pu
+ * etre interroge. Ouvert sans configuration, vgmstream rend la duree du flux
+ * lu UNE fois, sans repetition de la boucle ni fondu : pour un .brstm ou un
+ * .ast dont la boucle finit avec le fichier, c'est deja « intro + une boucle »,
+ * ce que publient les albums. La boucle elle-meme sert a l'alignement.
+ */
+function mesure(tampon, nomFichier) {
   if (!coeur) return null;
-  if (!tampon || tampon.length === 0 || tampon.length > TAILLE_MAX) return 0;
+  if (!tampon || tampon.length === 0 || tampon.length > TAILLE_MAX) return { ms: 0, boucle: null };
 
   const nom = path.basename(nomFichier);
   const chemin = '/duree/' + nom;
@@ -184,21 +209,32 @@ function dureeMs(tampon, nomFichier) {
     coeur.FS.writeFile(chemin, tampon);
     ptr = coeur._malloc(chemin.length + 1);
     coeur.stringToUTF8(chemin, ptr, chemin.length + 1);
+    const rien = { ms: 0, boucle: null };
     const sf = coeur._libstreamfile_open_from_stdio(ptr);
-    if (!sf) return 0;
+    if (!sf) return rien;
     lib = coeur._libvgmstream_create(sf, 1, 0);
     coeur._libstreamfile_close(sf);
-    if (!lib) return 0;
+    if (!lib) return rien;
 
     const fmt = coeur.HEAPU32[(lib + LIB_FORMAT_PTR) >> 2];
-    if (!fmt) return 0;
+    if (!fmt) return rien;
     const canaux = coeur.HEAP32[(fmt + FMT_CHANNELS) >> 2];
     const taux = coeur.HEAP32[(fmt + FMT_SAMPLE_RATE) >> 2];
     const echantillons = lireI64(fmt + FMT_PLAY_SAMPLES);
-    if (!plausible(canaux, taux, echantillons)) return 0;
-    return Math.round((echantillons / taux) * 1000);
+    if (!plausible(canaux, taux, echantillons)) return rien;
+
+    let boucle = null;
+    const total = lireI64(fmt + FMT_STREAM_SAMPLES);
+    const debut = lireI64(fmt + FMT_LOOP_START);
+    const fin = lireI64(fmt + FMT_LOOP_END);
+    const drapeau = coeur.HEAPU8[fmt + FMT_LOOP_FLAG];
+    if (drapeau === 1 && debut >= 0 && fin > debut && fin <= total && total <= 0x7fffffff
+        && (fin - debut) / taux >= 1) {
+      boucle = { debutMs: Math.round((debut / taux) * 1000), finMs: Math.round((fin / taux) * 1000) };
+    }
+    return { ms: Math.round((echantillons / taux) * 1000), boucle };
   } catch (e) {
-    return 0;
+    return { ms: 0, boucle: null };
   } finally {
     if (lib) coeur._libvgmstream_free(lib);
     if (ptr) coeur._free(ptr);
@@ -206,4 +242,4 @@ function dureeMs(tampon, nomFichier) {
   }
 }
 
-module.exports = { initialiser, mesurable, dureeMs, TAILLE_MAX };
+module.exports = { initialiser, mesurable, dureeMs, mesure, TAILLE_MAX, DOSSIER_MOTEURS };

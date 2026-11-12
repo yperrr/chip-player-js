@@ -43,6 +43,9 @@ ENV REACT_APP_API_BASE=$REACT_APP_API_BASE \
 # verrait pas a la construction, seulement a l'execution, sur un format
 # particulier.
 RUN node scripts/verify-wasm-abi.js && npm run build-lite
+# Les moteurs que la pile fait tourner sous Node (voir plus bas), reunis avec
+# le package.json qui les fait lire comme modules ES.
+RUN mkdir -p /build/moteurs  && cp src/psf.js src/psf.wasm src/vgmstream.js src/vgmstream.wasm src/libopenmpt.js src/libopenmpt.wasm /build/moteurs/  && echo '{"type":"module"}' > /build/moteurs/package.json
 
 # ---- Artefacts ----
 # `scratch` : rien d'executable, que des fichiers a recopier.
@@ -54,4 +57,9 @@ COPY --from=build /build/src/config /src/config
 # Le moteur de la famille PSF, tel quel : l'administration de la pile le fait
 # tourner sous Node pour ECOUTER les rips et en tirer une empreinte sonore
 # (alignement par empreinte). Le meme module que le lecteur, donc le meme son.
-COPY --from=build /build/src/psf.js /build/src/psf.wasm /moteurs/
+# Et ceux dont l'INDEXEUR se sert pour mesurer les durees (scripts/durations.js) :
+# vgmstream et libopenmpt. L'indexeur les trouve par CHIP_MOTEURS_DIR. Sans
+# eux, la production n'a jamais mesure une seule duree.
+COPY --from=build /build/moteurs /moteurs
+# Les listes d'extensions, lues par require depuis scripts/ (../src/...).
+COPY --from=build /build/src/vgmstream-extensions.json /build/src/vgmstream-extensions-hors-liste.js /build/src/libopenmpt-extensions.json /src/
