@@ -9,6 +9,12 @@ const { FORMATS } = require('../src/config/index');
 const { parseMetadata } = require('./metadata-parsers');
 // Duree de chaque morceau, par le moteur qui le joue : voir durations.js.
 const durees = require('./durations');
+// Index rapide : celui du DEMARRAGE du lecteur, qui ne sert ses pages qu'une
+// fois l'indexation finie. La reprise des anciennes durees nulles relit et
+// remesure des dizaines de milliers de fichiers : faite la, elle laissait le
+// site injoignable de longues minutes. Elle revient a la reindexation
+// periodique de l'administration, en arriere-plan.
+const INDEX_RAPIDE = process.env.CHIP_INDEX_RAPIDE === '1';
 
 
 const program = new Command();
@@ -642,7 +648,7 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
     // reel s'ecrit -1 et n'est plus repris.
     const dureeAReprendre = cached.duration_ms === null
       || cached.duration_ms === undefined
-      || (cached.duration_ms === 0 && durees.mesurable(ext));
+      || (cached.duration_ms === 0 && durees.mesurable(ext) && !INDEX_RAPIDE);
     if (cached.mtime === stat.mtime.toISOString() && !dureeAReprendre) {
       // File hasn't changed.
       // Check if sort order needs update
