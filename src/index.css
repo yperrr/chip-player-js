@@ -565,7 +565,14 @@ button.IconButton {
     display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio: 1 / 1;
     image-rendering: pixelated;
 }
-.Visualizer-analyzer, .Visualizer-spectrogram, .Visualizer-pico8, .PianoRoll-container {
+.Visualizer-tracker {
+    /* La zone du spectrogramme, jusqu'a la ligne du bas ; le canevas y est
+       dimensionne au pixel pres par TrackerView. */
+    flex-grow: 1; flex-shrink: 1; min-height: 0; overflow: hidden;
+    background: #000;
+}
+.Visualizer-tracker canvas { display: block; }
+.Visualizer-analyzer, .Visualizer-spectrogram, .Visualizer-pico8, .Visualizer-tracker, .PianoRoll-container {
     margin-left: 1px; /* Don't cover the right border of App-main-inner */
 }
 

@@ -1,5 +1,6 @@
 import pianoKeys from '../images/piano-keys.png';
 import Spectrogram from '../Spectrogram';
+import TrackerView from './TrackerView';
 import PianoRollVisualizer from '../piano-roll/PianoRollVisualizer';
 import { isMidiData } from '../piano-roll/midi-parser';
 import React, { Fragment, PureComponent } from 'react';
@@ -25,6 +26,12 @@ const SPEED_LABELS = [
 ];
 const VIS_WIDTH = 448;
 
+// Vue tracker des modules : choix memorise d'une visite a l'autre.
+const CLE_PATTERNS = 'chipTrackerPatterns';
+const lirePatterns = () => {
+  try { return localStorage.getItem(CLE_PATTERNS) !== 'off'; } catch (e) { return true; }
+};
+
 export default class Visualizer extends PureComponent {
   constructor(props) {
     super(props);
@@ -34,6 +41,7 @@ export default class Visualizer extends PureComponent {
       weightingMode: 1,
       fftSize: 2048,
       speed: 2,
+      patterns: lirePatterns(),
     };
     this.pico8CanvasRef = React.createRef();
     this.pico8Frame = null;
@@ -70,6 +78,23 @@ export default class Visualizer extends PureComponent {
     return !!(player && player.playerKey === 'pico8'
       && /\.p8(\.png)?$/i.test(this.props.songPath || ''));
   }
+
+  // Un module tracker est-il charge ? Seul le lecteur libopenmpt sait en
+  // montrer les patterns.
+  isTracker() {
+    const player = this.props.sequencer?.getPlayer();
+    return !!(player && player.hasPatterns && player.module);
+  }
+
+  showTracker() {
+    return this.isTracker() && this.state.patterns && !this.isCurrentSongMidi() && !this.isPico8();
+  }
+
+  handlePatternsClick = (e) => {
+    const on = e.target.value === 'on';
+    try { localStorage.setItem(CLE_PATTERNS, on ? 'on' : 'off'); } catch (err) { /* stockage indisponible */ }
+    this.setState({ patterns: on });
+  };
 
   showPico8Screen() {
     // L'ecran remplace le spectrogramme des qu'une cartouche est chargee ;
@@ -124,7 +149,7 @@ export default class Visualizer extends PureComponent {
   componentDidUpdate(prevProps) {
     const isMidi = this.isCurrentSongMidi();
 
-    if (!isMidi && !this.showPico8Screen()) {
+    if (!isMidi && !this.showPico8Screen() && !this.showTracker()) {
       this.spectrogram.setPaused(this.props.visible ? this.props.paused : true);
     } else {
       this.spectrogram.setPaused(true);
@@ -173,9 +198,11 @@ export default class Visualizer extends PureComponent {
     const isMidi = this.isCurrentSongMidi();
     const isPico8 = this.isPico8();
     const pico8Screen = isPico8;
+    const isTracker = this.isTracker() && !isMidi && !isPico8;
+    const trackerOn = isTracker && this.state.patterns;
 
     const specStyle = {
-      display: (!isMidi && !pico8Screen) ? 'block' : 'none',
+      display: (!isMidi && !pico8Screen && !trackerOn) ? 'block' : 'none',
       width: VIS_WIDTH,
       boxSizing: 'border-box',
     };
@@ -192,6 +219,22 @@ export default class Visualizer extends PureComponent {
 
         {!isMidi && !pico8Screen && (
           <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
+            {isTracker && (
+              <div title="Show the module's patterns scrolling as in a tracker, instead of the spectrogram.">
+                <span className='VisualizerParams-label'>Patterns:</span>
+                <label className='inline'><input onClick={this.handlePatternsClick}
+                                                 type='radio'
+                                                 name='tracker-patterns'
+                                                 defaultChecked={this.state.patterns}
+                                                 value='on'/>On</label>
+                <label className='inline'><input onClick={this.handlePatternsClick}
+                                                 type='radio'
+                                                 name='tracker-patterns'
+                                                 defaultChecked={!this.state.patterns}
+                                                 value='off'/>Off</label>
+              </div>
+            )}
+            {!trackerOn && <Fragment>
             <div>
               <span className='VisualizerParams-label'>Mode:</span>
               {
@@ -256,8 +299,16 @@ export default class Visualizer extends PureComponent {
                 )
               }
             </div>
+            </Fragment>}
           </div>
         )}
+
+        {/* Vue tracker : les patterns du module, a la place du spectrogramme. */}
+        <TrackerView active={trackerOn}
+                     running={trackerOn && !!this.props.visible && !this.props.paused}
+                     width={VIS_WIDTH}
+                     getPlayer={() => this.props.sequencer?.getPlayer()}
+                     getAudioLatencyMs={this.getAudioLatencyMs}/>
 
         {/* Piano Roll visualizer for MIDI files */}
         {isMidi && (
@@ -291,7 +342,7 @@ export default class Visualizer extends PureComponent {
              ref={this.pianoKeysRef}
              alt='Piano keys'
              style={{
-               display: (!isMidi && !pico8Screen && this.state.vizMode === 2) ? 'block' : 'none',
+               display: (!isMidi && !pico8Screen && !trackerOn && this.state.vizMode === 2) ? 'block' : 'none',
                width: VIS_WIDTH,
              }}/>
       </div>

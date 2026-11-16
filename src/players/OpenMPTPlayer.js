@@ -28,6 +28,9 @@ const RENDER_MASTERGAIN_MILLIBEL = 1;
 const RENDER_STEREOSEPARATION_PERCENT = 2;
 const RENDER_INTERPOLATIONFILTER_LENGTH = 3;
 
+// Granularite du releve de position pour le visualiseur tracker : ~10 ms.
+const TRANCHE = 512;
+
 export default class OpenMPTPlayer extends Player {
   paramDefs = [
     {
@@ -63,6 +66,10 @@ export default class OpenMPTPlayer extends Player {
     autoBind(this);
 
     this.playerKey = 'openmpt';
+    this.hasPatterns = true;
+    this._rendu = 0;          // trames rendues depuis le chargement
+    this._historique = [];    // positions relevees, voir _noterPosition()
+    this._patterns = new Map();
     this.name = 'OpenMPT Player';
     this.fileExtensions = fileExtensions;
     this.module = 0;          // openmpt_module*
@@ -108,6 +115,8 @@ export default class OpenMPTPlayer extends Player {
       this.core._openmpt_module_destroy(this.module);
       this.module = 0;
     }
+    this._historique = [];
+    this._patterns = new Map();
   }
 
   processAudioInner(channels) {
@@ -116,8 +125,21 @@ export default class OpenMPTPlayer extends Player {
       return;
     }
 
-    const rendus = this.core._openmpt_module_read_float_stereo(
-      this.module, this.sampleRate, this.bufferSize, this.bufGauche, this.bufDroite);
+    // Rendu par tranches de 512 trames, en relevant la position (ordre,
+    // pattern, ligne) avant chacune : le visualiseur tracker affiche la ligne
+    // ENTENDUE, qui retarde sur la ligne calculee de toute la latence audio.
+    // Un relevé par tampon de 2048 donnait une ligne qui sautillait.
+    const c = this.core;
+    let rendus = 0;
+    while (rendus < this.bufferSize) {
+      const n = Math.min(TRANCHE, this.bufferSize - rendus);
+      this._noterPosition();
+      const k = c._openmpt_module_read_float_stereo(
+        this.module, this.sampleRate, n, this.bufGauche + rendus * 4, this.bufDroite + rendus * 4);
+      rendus += k;
+      this._rendu += k;
+      if (k < n) break;
+    }
 
     if (rendus === 0) {
       // Fin du morceau. Le tampon n'a rien recu : le mettre a zero avant de
@@ -207,6 +229,86 @@ export default class OpenMPTPlayer extends Player {
   seekMs(ms) {
     if (!this.module) return;
     this.core._openmpt_module_set_position_seconds(this.module, ms / 1000);
+    // Les positions deja relevees decrivent l'ancien endroit.
+    this._historique = [];
+  }
+
+  // --- Visualiseur tracker ------------------------------------------------
+
+  _noterPosition() {
+    const c = this.core;
+    const h = this._historique;
+    h.push({
+      t: this._rendu,
+      ordre: c._openmpt_module_get_current_order(this.module),
+      pattern: c._openmpt_module_get_current_pattern(this.module),
+      ligne: c._openmpt_module_get_current_row(this.module),
+      vitesse: c._openmpt_module_get_current_speed(this.module),
+      tempo: c._openmpt_module_get_current_tempo(this.module),
+    });
+    // Deux secondes suffisent largement a couvrir la latence.
+    const garde = this._rendu - 2 * this.sampleRate;
+    while (h.length > 2 && h[1].t < garde) h.shift();
+  }
+
+  _chaine(ptr) {
+    if (!ptr) return '';
+    const s = this.core.UTF8ToString(ptr);
+    // openmpt_free_string() n'est qu'un free() : celui du meme tas.
+    this.core._free(ptr);
+    return s;
+  }
+
+  /**
+   * Contenu d'un pattern, formate par libopenmpt dans la notation du format
+   * d'origine (effets en hexadecimal pour un MOD, en lettres pour un IT…),
+   * avec la coloration syntaxique de chaque caractere. `largeur` : nombre de
+   * caracteres par case, 0 pour la case entiere ; libopenmpt abrege lui-meme.
+   * Mis en cache : un pattern ne change pas pendant la lecture.
+   */
+  getPattern(pattern, largeur) {
+    if (!this.module || pattern < 0) return null;
+    const cle = pattern + ':' + largeur;
+    let p = this._patterns.get(cle);
+    if (p) return p;
+    const c = this.core;
+    const lignes = c._openmpt_module_get_pattern_num_rows(this.module, pattern);
+    const canaux = c._openmpt_module_get_num_channels(this.module);
+    const texte = [];
+    const couleurs = [];
+    for (let l = 0; l < lignes; l++) {
+      const t = [];
+      const h = [];
+      for (let k = 0; k < canaux; k++) {
+        t.push(this._chaine(c._openmpt_module_format_pattern_row_channel(this.module, pattern, l, k, largeur, 1)));
+        h.push(this._chaine(c._openmpt_module_highlight_pattern_row_channel(this.module, pattern, l, k, largeur, 1)));
+      }
+      texte.push(t);
+      couleurs.push(h);
+    }
+    p = { lignes, canaux, texte, couleurs };
+    this._patterns.set(cle, p);
+    return p;
+  }
+
+  /**
+   * Position ENTENDUE : la derniere relevee avant (rendu - latence). Rend
+   * null sans module.
+   */
+  getTrackerPosition(latenceMs = 0) {
+    if (!this.module) return null;
+    const h = this._historique;
+    if (!h.length) return null;
+    const cible = this._rendu - (latenceMs / 1000) * this.sampleRate;
+    let r = h[0];
+    for (let i = h.length - 1; i >= 0; i--) {
+      if (h[i].t <= cible) { r = h[i]; break; }
+    }
+    return {
+      ...r,
+      ordres: this.core._openmpt_module_get_num_orders(this.module),
+      canaux: this.core._openmpt_module_get_num_channels(this.module),
+    };
   }
 
   getNumSubtunes() {
