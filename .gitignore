@@ -52,6 +52,10 @@ public/sitemap*.xml
 !/src/psf.js
 !/src/psf.wasm
 
+# Console imaginaire PICO-8 (FAKE-08), voir src/fake08.provenance.json.
+!/src/fake08.js
+!/src/fake08.wasm
+
 # Passerelle de configuration Firebase : elle ne contient AUCUNE valeur, la
 # vraie configuration arrive a l'execution (window.__chipFirebaseConfig) ou par
 # REACT_APP_FIREBASE_CONFIG. Sans ce fichier, le build echoue.

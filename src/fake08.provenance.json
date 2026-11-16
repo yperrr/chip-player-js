@@ -1,0 +1,27 @@
+{
+  "bibliotheque": "FAKE-08 (emulateur de la console imaginaire PICO-8) + z8lua",
+  "licence": "FAKE-08 : MIT. z8lua : MIT. Parties reprises de zepto8 : WTFPL 2. lodepng : zlib. miniz : MIT. Aucun lien avec Lexaloffle, rien de PICO-8 lui-meme.",
+  "sources": {
+    "fake-08": "https://github.com/jtothebell/fake-08 @ 814991a2571ad3970e386cef48f3b148aa1c27b9",
+    "z8lua": "https://github.com/jtothebell/z8lua @ e6928578d46b61fd5ea30cfcf547e855a30a0553 (sous-module)"
+  },
+  "construction": {
+    "recette": "scripts/emscripten/fake08/Dockerfile",
+    "image": "emscripten/emsdk:6.0.0",
+    "note": "Sources du coeur libretro de FAKE-08 (platform/libretro/Makefile.common) sauf libretro.cpp, remplace par shim.cpp. z8lua compile en C++ avec -fexceptions : ses erreurs Lua sont des throw."
+  },
+  "shim": {
+    "fichier": "scripts/emscripten/fake08/shim.cpp",
+    "note": "f8_init/f8_load/f8_step/f8_audio/f8_screen : un Step() a 60 Hz, 735 echantillons a 22 050 Hz toutes les deux images, comme le coeur libretro."
+  },
+  "colle": {
+    "fichier": "src/fake08.js",
+    "octets": 72153,
+    "sha256": "0abc54232d11095dbe2ac941b726a129c9bd2815cabb8fd64116e74caf1d43ea"
+  },
+  "wasm": {
+    "fichier": "src/fake08.wasm",
+    "octets": 677252,
+    "sha256": "b99611fd765b28daa096601b7cc8b667af0934350af7dac51be960cc41fa0c54"
+  }
+}

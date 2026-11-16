@@ -80,7 +80,7 @@ if (!LOCAL_CATALOG_ROOT || !LOCAL_CLIENT_BUILD_ROOT) {
 }
 
 // Only used when browsing local filesystem
-const { FORMATS } = browseLocalFilesystem ? require('../src/config/index.js') : [];
+const { FORMATS, extensionOf } = browseLocalFilesystem ? require('../src/config/index.js') : {};
 
 const app = express();
 const router = express.Router();
@@ -381,7 +381,7 @@ router.get('/browse', cache1Hour, async (req, res) => {
       const files = await fs.readdir(path.join(LOCAL_CATALOG_ROOT, reqPath), { withFileTypes: true });
       const result = files
         .filter(file => {
-          const ext = path.extname(file.name).toLowerCase().slice(1);
+          const ext = extensionOf(file.name);
           return (file.isDirectory() || (file.isFile() && FORMATS.includes(ext)));
         })
         .map((file, i) => {

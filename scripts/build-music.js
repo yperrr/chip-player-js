@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const { Command } = require('commander');
 const chalk = require('chalk');
 const { toArabic } = require('roman-numerals');
-const { FORMATS } = require('../src/config/index');
+const { FORMATS, extensionOf } = require('../src/config/index');
 const { parseMetadata } = require('./metadata-parsers');
 // Duree de chaque morceau, par le moteur qui le joue : voir durations.js.
 const durees = require('./durations');
@@ -433,8 +433,9 @@ function findArt(entries, dirPath) {
     return path.join(dirPath, frontImg.name);
   }
 
-  // Fallback to any image
-  const img = entries.find(e => e.isFile() && IMAGE_EXT_REGEX.test(e.name));
+  // Fallback to any image — sauf une cartouche PICO-8 (« jeu.p8.png ») :
+  // c'est un morceau, dont l'image n'illustre que lui-meme.
+  const img = entries.find(e => e.isFile() && IMAGE_EXT_REGEX.test(e.name) && !/\.p8\.png$/i.test(e.name));
   return img ? path.join(dirPath, img.name) : null;
 }
 
@@ -513,7 +514,8 @@ async function processDirectory(fullPath, relativePath, parentId = null, parentS
     if (entry.isDirectory()) {
       allChildren.push({ type: 'dir', name: entry.name, fullPath: entryFullPath, relativePath: entryRelativePath });
     } else {
-      const ext = path.extname(entry.name).toLowerCase();
+      // extensionOf : « jeu.p8.png » est une cartouche, pas une image.
+      const ext = '.' + extensionOf(entry.name);
       if (VALID_EXTENSIONS.has(ext)) {
         allChildren.push({ type: 'file', name: entry.name, fullPath: entryFullPath, relativePath: entryRelativePath, ext });
       }
@@ -683,7 +685,10 @@ function processFile(child, directoryId, dirEntries, dirImagePath, dirTextIds) {
   // 1. Image
   const baseName = path.basename(name, ext);
   const specificImageName = findSpecificSidecar(dirEntries, baseName, ['png', 'jpg', 'jpeg', 'gif']);
-  const finalImagePath = specificImageName ? path.join(path.dirname(relativePath), specificImageName) : dirImagePath;
+  // Une cartouche PICO-8 en image EST sa propre pochette.
+  const finalImagePath = extension === 'p8.png'
+    ? relativePath
+    : (specificImageName ? path.join(path.dirname(relativePath), specificImageName) : dirImagePath);
   
   const finalImageId = !options.dryrun ? getImageId(finalImagePath) : null;
 

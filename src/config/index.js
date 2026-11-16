@@ -25,6 +25,10 @@ const MAX_SAMPLE_RATE = 48000; // Higher rates are problematic for some players.
 const MAX_VOICES = 64;
 const REPLACE_STATE_ON_SEEK = false;
 const FORMATS = [
+  // PICO-8 : cartouches texte (.p8) et image (.p8.png), jouees par
+  // src/players/Pico8Player.js (FAKE-08). Voir extensionOf() pour la seconde.
+  'p8',
+  'p8.png',
   // Decodes par le navigateur, via NativeAudioPlayer.
   'aa3',
   'aac',
@@ -961,8 +965,21 @@ const SOUNDFONTS = [
   },
 ];
 
+// L'extension qui decide du format. La derniere, sauf les extensions
+// COMPOSEES : une cartouche PICO-8 en image s'appelle « jeu.p8.png », et
+// « png » seul designe une pochette. Partout ou un nom de fichier choisit un
+// moteur — sequenceur, indexeur, depot local —, passer par ici.
+const EXTENSIONS_COMPOSEES = ['p8.png'];
+function extensionOf(name) {
+  const n = String(name || '').toLowerCase();
+  for (const e of EXTENSIONS_COMPOSEES) if (n.endsWith('.' + e)) return e;
+  const i = n.lastIndexOf('.');
+  return i >= 0 ? n.slice(i + 1) : '';
+}
+
 // needs to be a CommonJS module - used in node.js server
 module.exports = {
+  extensionOf,
   API_BASE,
   CATALOG_PREFIX,
   FORMATS,

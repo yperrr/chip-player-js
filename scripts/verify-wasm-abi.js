@@ -55,6 +55,12 @@ const MOTEURS = [
     correctif: 'reconstruire avec scripts/emscripten/psf/ en completant EXPORTED_FUNCTIONS',
   },
   {
+    nom: 'fake08',
+    colle: 'src/fake08.js',
+    fichiers: ['src/players/Pico8Player.js'],
+    correctif: 'reconstruire avec scripts/emscripten/fake08/ en completant EXPORTED_FUNCTIONS',
+  },
+  {
     nom: 'chip-core',
     colle: 'src/chip-core.js',
     defaut: true,

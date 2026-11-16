@@ -25,6 +25,13 @@ const SPEED_LABELS = [
 ];
 const VIS_WIDTH = 448;
 
+// PICO-8 : l'ecran de la cartouche, a la place du spectrogramme, quand
+// l'option est active. Memorise d'une visite a l'autre.
+const CLE_ECRAN_PICO8 = 'chipPico8Screen';
+const lireEcranPico8 = () => {
+  try { return localStorage.getItem(CLE_ECRAN_PICO8) !== 'off'; } catch (e) { return true; }
+};
+
 export default class Visualizer extends PureComponent {
   constructor(props) {
     super(props);
@@ -34,7 +41,10 @@ export default class Visualizer extends PureComponent {
       weightingMode: 1,
       fftSize: 2048,
       speed: 2,
+      pico8Screen: lireEcranPico8(),
     };
+    this.pico8CanvasRef = React.createRef();
+    this.pico8Frame = null;
 
     this.freqCanvasRef = React.createRef();
     this.specCanvasRef = React.createRef();
@@ -60,6 +70,61 @@ export default class Visualizer extends PureComponent {
     }
   }
 
+  // Une cartouche PICO-8 est-elle chargee ? Le lecteur PICO-8 seul a un ecran.
+  isPico8() {
+    // Le morceau courant, et non le dernier moteur servi : getPlayer() garde
+    // le lecteur PICO-8 apres qu'on est passe a autre chose.
+    const player = this.props.sequencer?.getPlayer();
+    return !!(player && player.playerKey === 'pico8'
+      && /\.p8(\.png)?$/i.test(this.props.songPath || ''));
+  }
+
+  showPico8Screen() {
+    return this.isPico8() && this.state.pico8Screen;
+  }
+
+  // Le dessin suit le rafraichissement de l'ecran, pas l'audio : l'image du
+  // programme est lue a chaque trame d'affichage et posee telle quelle sur un
+  // canevas de 128 x 128, agrandi par le CSS en pixels nets.
+  startPico8Loop() {
+    if (this.pico8Frame) return;
+    const canvas = this.pico8CanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const image = ctx.createImageData(128, 128);
+    const draw = () => {
+      this.pico8Frame = null;
+      if (!this.showPico8Screen() || !this.props.visible) return;
+      const pixels = this.props.sequencer?.getPlayer()?.getScreen?.();
+      if (pixels) {
+        image.data.set(pixels);
+        ctx.putImageData(image, 0, 0);
+      }
+      this.pico8Frame = requestAnimationFrame(draw);
+    };
+    this.pico8Frame = requestAnimationFrame(draw);
+  }
+
+  stopPico8Loop() {
+    if (this.pico8Frame) cancelAnimationFrame(this.pico8Frame);
+    this.pico8Frame = null;
+  }
+
+  syncPico8() {
+    if (this.showPico8Screen() && this.props.visible) this.startPico8Loop();
+    else this.stopPico8Loop();
+  }
+
+  componentWillUnmount() {
+    this.stopPico8Loop();
+  }
+
+  handlePico8ScreenClick = (e) => {
+    const on = e.target.value === 'on';
+    try { localStorage.setItem(CLE_ECRAN_PICO8, on ? 'on' : 'off'); } catch (err) { /* stockage indisponible */ }
+    this.setState({ pico8Screen: on }, () => this.componentDidUpdate(this.props));
+  };
+
   isCurrentSongMidi() {
     return !!(
       (this.props.songPath && /\.(mid|midi|smf)$/i.test(this.props.songPath)) ||
@@ -71,11 +136,12 @@ export default class Visualizer extends PureComponent {
   componentDidUpdate(prevProps) {
     const isMidi = this.isCurrentSongMidi();
 
-    if (!isMidi) {
+    if (!isMidi && !this.showPico8Screen()) {
       this.spectrogram.setPaused(this.props.visible ? this.props.paused : true);
     } else {
       this.spectrogram.setPaused(true);
     }
+    this.syncPico8();
   }
 
   handleModeClick = (e) => {
@@ -117,16 +183,48 @@ export default class Visualizer extends PureComponent {
 
   render() {
     const isMidi = this.isCurrentSongMidi();
+    const isPico8 = this.isPico8();
+    const pico8Screen = isPico8 && this.state.pico8Screen;
 
     const specStyle = {
-      display: !isMidi ? 'block' : 'none',
+      display: (!isMidi && !pico8Screen) ? 'block' : 'none',
       width: VIS_WIDTH,
       boxSizing: 'border-box',
     };
 
     return (
       <div className='Visualizer' style={{ display: this.props.visible ? 'flex' : 'none' }}>
-        {!isMidi && (
+        {isPico8 && (
+          <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
+            <div title="Show the cartridge's screen instead of the spectrogram. Off: sound only, with the usual visualizer.">
+              <span className='VisualizerParams-label'>PICO-8 screen:</span>
+              <label className='inline'><input onClick={this.handlePico8ScreenClick}
+                                               type='radio'
+                                               name='pico8-screen'
+                                               defaultChecked={this.state.pico8Screen}
+                                               value='on'/>On</label>
+              <label className='inline'><input onClick={this.handlePico8ScreenClick}
+                                               type='radio'
+                                               name='pico8-screen'
+                                               defaultChecked={!this.state.pico8Screen}
+                                               value='off'/>Off</label>
+            </div>
+          </div>
+        )}
+
+        {/* Ecran de la cartouche PICO-8 */}
+        <canvas className='Visualizer-pico8'
+                width={128} height={128}
+                ref={this.pico8CanvasRef}
+                style={{
+                  display: pico8Screen ? 'block' : 'none',
+                  width: VIS_WIDTH,
+                  height: VIS_WIDTH,
+                  imageRendering: 'pixelated',
+                  background: '#000',
+                }}/>
+
+        {!isMidi && !pico8Screen && (
           <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
             <div>
               <span className='VisualizerParams-label'>Mode:</span>
@@ -227,7 +325,7 @@ export default class Visualizer extends PureComponent {
              ref={this.pianoKeysRef}
              alt='Piano keys'
              style={{
-               display: (!isMidi && this.state.vizMode === 2) ? 'block' : 'none',
+               display: (!isMidi && !pico8Screen && this.state.vizMode === 2) ? 'block' : 'none',
                width: VIS_WIDTH,
              }}/>
       </div>

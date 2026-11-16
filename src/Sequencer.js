@@ -1,3 +1,4 @@
+import { extensionOf } from './config';
 import axios from 'redaxios';
 import autoBind from 'auto-bind';
 import EventEmitter from 'events';
@@ -227,7 +228,7 @@ export default class Sequencer extends EventEmitter {
     }
 
     // Find a player that can play this filetype
-    const ext = filepath.slice(filepath.lastIndexOf('.') + 1).toLowerCase();
+    const ext = extensionOf(filepath);
     let player = this.players.find(p => p.canPlay(ext));
     // Array.find() renvoie undefined, jamais null : la garde ci-dessous ne se
     // declenchait donc jamais. Une extension inconnue ne produisait pas ce
@@ -277,7 +278,7 @@ export default class Sequencer extends EventEmitter {
     // extensions are claimed by more than one engine - 'mus' by MIDIPlayer
     // (DOOM) and SIDPlayer (Compute!'s Sidplayer, C64) - and only the content
     // can tell those apart.
-    const ext = filepath.slice(filepath.lastIndexOf('.') + 1).toLowerCase();
+    const ext = extensionOf(filepath);
     const better = this.players.find(p => p.canPlay(ext, uint8Array));
     if (better && better !== player) {
       player.suspend();

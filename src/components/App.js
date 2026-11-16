@@ -18,6 +18,7 @@ import {
   SOUNDFONT_MOUNTPOINT,
   MAX_SAMPLE_RATE,
   FORMATS,
+  extensionOf,
 } from '../config';
 import {
   ensureEmscFileWithData,
@@ -34,6 +35,7 @@ import Sequencer, { NUM_REPEAT_MODES, NUM_SHUFFLE_MODES, REPEAT_OFF, SHUFFLE_OFF
 import GMEPlayer from '../players/GMEPlayer';
 import KSSPlayer from '../players/KSSPlayer';
 import PSFPlayer from '../players/PSFPlayer';
+import Pico8Player from '../players/Pico8Player';
 import MIDIPlayer from '../players/MIDIPlayer';
 import V2MPlayer from '../players/V2MPlayer';
 import XMPPlayer from '../players/XMPPlayer';
@@ -210,6 +212,9 @@ class App extends React.Component {
       // avant VGMStreamPlayer, qui revendique « psf », « ssf » et « dsf »
       // pour de tout autres formats portant le meme nom.
       PSFPlayer,
+      // Cartouches PICO-8 (.p8, .p8.png) : un programme a executer, pas un
+      // flux. Personne d'autre ne revendique ces extensions.
+      Pico8Player,
       MDXPlayer,
       VGMPlayer,
       SIDPlayer,
@@ -893,7 +898,7 @@ class App extends React.Component {
         const reader = new FileReader();
         reader.onerror = (event) => reject(event.target.error);
         reader.onload = async () => {
-          const ext = pathe.extname(file.name).toLowerCase().substring(1);
+          const ext = extensionOf(file.name);
           if (ext === 'sf2') {
             // Handle dropped Soundfont
             if (!this.midiPlayer) {
