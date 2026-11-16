@@ -25,13 +25,6 @@ const SPEED_LABELS = [
 ];
 const VIS_WIDTH = 448;
 
-// PICO-8 : l'ecran de la cartouche, a la place du spectrogramme, quand
-// l'option est active. Memorise d'une visite a l'autre.
-const CLE_ECRAN_PICO8 = 'chipPico8Screen';
-const lireEcranPico8 = () => {
-  try { return localStorage.getItem(CLE_ECRAN_PICO8) !== 'off'; } catch (e) { return true; }
-};
-
 export default class Visualizer extends PureComponent {
   constructor(props) {
     super(props);
@@ -41,7 +34,6 @@ export default class Visualizer extends PureComponent {
       weightingMode: 1,
       fftSize: 2048,
       speed: 2,
-      pico8Screen: lireEcranPico8(),
     };
     this.pico8CanvasRef = React.createRef();
     this.pico8Frame = null;
@@ -80,7 +72,9 @@ export default class Visualizer extends PureComponent {
   }
 
   showPico8Screen() {
-    return this.isPico8() && this.state.pico8Screen;
+    // L'ecran remplace le spectrogramme des qu'une cartouche est chargee ;
+    // l'interrupteur Visualizer On/Off de l'en-tete l'affiche ou le cache.
+    return this.isPico8();
   }
 
   // Le dessin suit le rafraichissement de l'ecran, pas l'audio : l'image du
@@ -118,12 +112,6 @@ export default class Visualizer extends PureComponent {
   componentWillUnmount() {
     this.stopPico8Loop();
   }
-
-  handlePico8ScreenClick = (e) => {
-    const on = e.target.value === 'on';
-    try { localStorage.setItem(CLE_ECRAN_PICO8, on ? 'on' : 'off'); } catch (err) { /* stockage indisponible */ }
-    this.setState({ pico8Screen: on }, () => this.componentDidUpdate(this.props));
-  };
 
   isCurrentSongMidi() {
     return !!(
@@ -184,25 +172,7 @@ export default class Visualizer extends PureComponent {
   render() {
     const isMidi = this.isCurrentSongMidi();
     const isPico8 = this.isPico8();
-    const pico8Screen = isPico8 && this.state.pico8Screen;
-
-    const pico8Options = (
-      <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
-              <div title="Show the cartridge's screen instead of the spectrogram. Off: sound only, with the usual visualizer.">
-                <span className='VisualizerParams-label'>PICO-8 screen:</span>
-                <label className='inline'><input onClick={this.handlePico8ScreenClick}
-                                                 type='radio'
-                                                 name='pico8-screen'
-                                                 defaultChecked={this.state.pico8Screen}
-                                                 value='on'/>On</label>
-                <label className='inline'><input onClick={this.handlePico8ScreenClick}
-                                                 type='radio'
-                                                 name='pico8-screen'
-                                                 defaultChecked={!this.state.pico8Screen}
-                                                 value='off'/>Off</label>
-              </div>
-            </div>
-    );
+    const pico8Screen = isPico8;
 
     const specStyle = {
       display: (!isMidi && !pico8Screen) ? 'block' : 'none',
@@ -212,17 +182,11 @@ export default class Visualizer extends PureComponent {
 
     return (
       <div className='Visualizer' style={{ display: this.props.visible ? 'flex' : 'none' }}>
-        {/* L'option, en tete du panneau quand l'ecran est eteint ; quand il
-            est allume, juste au-dessus de lui (voir plus bas). */}
-        {isPico8 && !pico8Screen && pico8Options}
-
-        {/* Ecran de la cartouche PICO-8, cale en bas du panneau, sur toute sa
-            largeur (moins le pixel de retrait qui laisse voir la bordure), et
-            carre : 128 x 128 etire a 448 x 448. L'option est posee juste
-            au-dessus. */}
+        {/* Ecran de la cartouche PICO-8, a la place du spectrogramme : cale en
+            bas du panneau, sur toute sa largeur (moins le pixel de retrait qui
+            laisse voir la bordure), et carre — 128 x 128 etire a 448 x 448. */}
         <div className='Visualizer-pico8'
              style={{ display: pico8Screen ? 'flex' : 'none', width: VIS_WIDTH }}>
-          {pico8Screen && pico8Options}
           <canvas width={128} height={128} ref={this.pico8CanvasRef}/>
         </div>
 

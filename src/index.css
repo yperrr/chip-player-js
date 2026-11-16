@@ -557,7 +557,7 @@ button.IconButton {
 .Visualizer-spectrogram { display: block; flex-grow: 1; flex-shrink: 0; min-height: 800px; image-rendering: pixelated; }
 .Visualizer-pico8 {
     /* Remplit le panneau sous les options et pose l'ecran contre la ligne du
-       bas : l'option « PICO-8 screen » juste au-dessus, l'ecran en dessous. */
+       bas. */
     flex-grow: 1; flex-shrink: 1; min-height: 0; box-sizing: border-box;
     flex-direction: column; justify-content: flex-end;
 }
