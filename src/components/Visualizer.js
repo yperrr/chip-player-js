@@ -26,10 +26,15 @@ const SPEED_LABELS = [
 ];
 const VIS_WIDTH = 448;
 
-// Vue tracker des modules : choix memorise d'une visite a l'autre.
-const CLE_PATTERNS = 'chipTrackerPatterns';
-const lirePatterns = () => {
-  try { return localStorage.getItem(CLE_PATTERNS) !== 'off'; } catch (e) { return true; }
+// Mode « Tracker » des modules : choix memorise d'une visite a l'autre.
+// Desactive par defaut : le visualiseur reste le spectrogramme tant qu'on
+// ne choisit pas Tracker dans la liste des modes.
+const CLE_TRACKER = 'chipTrackerMode';
+const lireTracker = () => {
+  try { return localStorage.getItem(CLE_TRACKER) === 'on'; } catch (e) { return false; }
+};
+const ecrireTracker = on => {
+  try { localStorage.setItem(CLE_TRACKER, on ? 'on' : 'off'); } catch (e) { /* stockage indisponible */ }
 };
 
 export default class Visualizer extends PureComponent {
@@ -41,7 +46,7 @@ export default class Visualizer extends PureComponent {
       weightingMode: 1,
       fftSize: 2048,
       speed: 2,
-      patterns: lirePatterns(),
+      tracker: lireTracker(),
     };
     this.pico8CanvasRef = React.createRef();
     this.pico8Frame = null;
@@ -87,13 +92,12 @@ export default class Visualizer extends PureComponent {
   }
 
   showTracker() {
-    return this.isTracker() && this.state.patterns && !this.isCurrentSongMidi() && !this.isPico8();
+    return this.isTracker() && this.state.tracker && !this.isCurrentSongMidi() && !this.isPico8();
   }
 
-  handlePatternsClick = (e) => {
-    const on = e.target.value === 'on';
-    try { localStorage.setItem(CLE_PATTERNS, on ? 'on' : 'off'); } catch (err) { /* stockage indisponible */ }
-    this.setState({ patterns: on });
+  handleTrackerModeClick = () => {
+    ecrireTracker(true);
+    this.setState({ tracker: true });
   };
 
   showPico8Screen() {
@@ -159,7 +163,9 @@ export default class Visualizer extends PureComponent {
 
   handleModeClick = (e) => {
     const mode = parseInt(e.target.value, 10);
-    this.setState({vizMode: mode});
+    // Un mode spectrogramme choisi quitte le mode Tracker.
+    if (this.state.tracker) ecrireTracker(false);
+    this.setState({vizMode: mode, tracker: false});
     this.spectrogram.setMode(mode);
   };
 
@@ -199,7 +205,7 @@ export default class Visualizer extends PureComponent {
     const isPico8 = this.isPico8();
     const pico8Screen = isPico8;
     const isTracker = this.isTracker() && !isMidi && !isPico8;
-    const trackerOn = isTracker && this.state.patterns;
+    const trackerOn = isTracker && this.state.tracker;
 
     const specStyle = {
       display: (!isMidi && !pico8Screen && !trackerOn) ? 'block' : 'none',
@@ -219,34 +225,28 @@ export default class Visualizer extends PureComponent {
 
         {!isMidi && !pico8Screen && (
           <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
-            {isTracker && (
-              <div title="Show the module's patterns scrolling as in a tracker, instead of the spectrogram.">
-                <span className='VisualizerParams-label'>Patterns:</span>
-                <label className='inline'><input onClick={this.handlePatternsClick}
-                                                 type='radio'
-                                                 name='tracker-patterns'
-                                                 defaultChecked={this.state.patterns}
-                                                 value='on'/>On</label>
-                <label className='inline'><input onClick={this.handlePatternsClick}
-                                                 type='radio'
-                                                 name='tracker-patterns'
-                                                 defaultChecked={!this.state.patterns}
-                                                 value='off'/>Off</label>
-              </div>
-            )}
-            {!trackerOn && <Fragment>
             <div>
               <span className='VisualizerParams-label'>Mode:</span>
               {
                 SPECTROGRAM_MODES.map((mode, i) =>
-                  <label key={'m_'+i} className='inline'><input onClick={this.handleModeClick}
+                  <label key={'m_'+i} className='inline'><input onChange={this.handleModeClick}
                                         type='radio'
                                         name='spectrogram-mode'
-                                        defaultChecked={this.state.vizMode === i}
+                                        checked={!trackerOn && this.state.vizMode === i}
                                         value={i}/>{mode}</label>
                 )
               }
+              {/* Tracker : seulement pour un module, a la suite des autres. */}
+              {isTracker &&
+                <label key='m_tracker' className='inline'
+                       title="Scroll the module's patterns as in a tracker.">
+                  <input onChange={this.handleTrackerModeClick}
+                         type='radio'
+                         name='spectrogram-mode'
+                         checked={trackerOn}
+                         value='tracker'/>Tracker</label>}
             </div>
+            {!trackerOn && <Fragment>
             {this.state.vizMode === 2 ?
               <div>
                 <span className='VisualizerParams-label'>Weighting:</span>
