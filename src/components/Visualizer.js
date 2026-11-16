@@ -79,15 +79,6 @@ export default class Visualizer extends PureComponent {
       && /\.p8(\.png)?$/i.test(this.props.songPath || ''));
   }
 
-  // Taille CSS de l'ecran : le plus grand multiple entier de 128 pixels
-  // PHYSIQUES qui tienne dans la largeur du visualiseur (moins le pixel de
-  // retrait). 3x sur un ecran ordinaire, 7x (448 px CSS) a densite 2.
-  pico8Size() {
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-    const facteur = Math.max(1, Math.floor(((VIS_WIDTH - 1) * dpr) / 128));
-    return (128 * facteur) / dpr;
-  }
-
   showPico8Screen() {
     return this.isPico8() && this.state.pico8Screen;
   }
@@ -195,6 +186,24 @@ export default class Visualizer extends PureComponent {
     const isPico8 = this.isPico8();
     const pico8Screen = isPico8 && this.state.pico8Screen;
 
+    const pico8Options = (
+      <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
+              <div title="Show the cartridge's screen instead of the spectrogram. Off: sound only, with the usual visualizer.">
+                <span className='VisualizerParams-label'>PICO-8 screen:</span>
+                <label className='inline'><input onClick={this.handlePico8ScreenClick}
+                                                 type='radio'
+                                                 name='pico8-screen'
+                                                 defaultChecked={this.state.pico8Screen}
+                                                 value='on'/>On</label>
+                <label className='inline'><input onClick={this.handlePico8ScreenClick}
+                                                 type='radio'
+                                                 name='pico8-screen'
+                                                 defaultChecked={!this.state.pico8Screen}
+                                                 value='off'/>Off</label>
+              </div>
+            </div>
+    );
+
     const specStyle = {
       display: (!isMidi && !pico8Screen) ? 'block' : 'none',
       width: VIS_WIDTH,
@@ -203,35 +212,18 @@ export default class Visualizer extends PureComponent {
 
     return (
       <div className='Visualizer' style={{ display: this.props.visible ? 'flex' : 'none' }}>
-        {isPico8 && (
-          <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
-            <div title="Show the cartridge's screen instead of the spectrogram. Off: sound only, with the usual visualizer.">
-              <span className='VisualizerParams-label'>PICO-8 screen:</span>
-              <label className='inline'><input onClick={this.handlePico8ScreenClick}
-                                               type='radio'
-                                               name='pico8-screen'
-                                               defaultChecked={this.state.pico8Screen}
-                                               value='on'/>On</label>
-              <label className='inline'><input onClick={this.handlePico8ScreenClick}
-                                               type='radio'
-                                               name='pico8-screen'
-                                               defaultChecked={!this.state.pico8Screen}
-                                               value='off'/>Off</label>
-            </div>
-          </div>
-        )}
+        {/* L'option, en tete du panneau quand l'ecran est eteint ; quand il
+            est allume, juste au-dessus de lui (voir plus bas). */}
+        {isPico8 && !pico8Screen && pico8Options}
 
-        {/* Ecran de la cartouche PICO-8.
-            La zone prend exactement la place du spectrogramme (meme largeur,
-            meme hauteur, meme retrait d'un pixel pour ne pas couvrir la
-            bordure du panneau). L'image y est agrandie d'un facteur ENTIER en
-            pixels physiques : a 3,5x, les pixels PICO-8 faisaient tantot 3,
-            tantot 4 points, et les formes en devenaient irregulieres. */}
+        {/* Ecran de la cartouche PICO-8, cale en bas du panneau, sur toute sa
+            largeur (moins le pixel de retrait qui laisse voir la bordure), et
+            carre : 128 x 128 etire a 448 x 448. L'option est posee juste
+            au-dessus. */}
         <div className='Visualizer-pico8'
              style={{ display: pico8Screen ? 'flex' : 'none', width: VIS_WIDTH }}>
-          <canvas width={128} height={128}
-                  ref={this.pico8CanvasRef}
-                  style={{ width: this.pico8Size(), height: this.pico8Size() }}/>
+          {pico8Screen && pico8Options}
+          <canvas width={128} height={128} ref={this.pico8CanvasRef}/>
         </div>
 
         {!isMidi && !pico8Screen && (
