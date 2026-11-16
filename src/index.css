@@ -555,7 +555,16 @@ button.IconButton {
 @media screen and (max-width: 600px) { .Visualizer-toggle { display: none; } }
 .Visualizer-analyzer { display: block; image-rendering: pixelated; }
 .Visualizer-spectrogram { display: block; flex-grow: 1; flex-shrink: 0; min-height: 800px; image-rendering: pixelated; }
-.Visualizer-analyzer, .Visualizer-spectrogram, .PianoRoll-container {
+.Visualizer-pico8 {
+    /* Remplit le panneau sous les options, ni plus ni moins : l'ecran se cale
+       contre la ligne du bas et celle de gauche, et le noir comble le reste.
+       (Avec la hauteur minimale du spectrogramme, le bas sortait du panneau.) */
+    flex-grow: 1; flex-shrink: 1; min-height: 0; box-sizing: border-box;
+    justify-content: flex-start; align-items: flex-end;
+    background: #000;
+}
+.Visualizer-pico8 canvas { display: block; image-rendering: pixelated; }
+.Visualizer-analyzer, .Visualizer-spectrogram, .Visualizer-pico8, .PianoRoll-container {
     margin-left: 1px; /* Don't cover the right border of App-main-inner */
 }
 

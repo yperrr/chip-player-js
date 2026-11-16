@@ -79,6 +79,15 @@ export default class Visualizer extends PureComponent {
       && /\.p8(\.png)?$/i.test(this.props.songPath || ''));
   }
 
+  // Taille CSS de l'ecran : le plus grand multiple entier de 128 pixels
+  // PHYSIQUES qui tienne dans la largeur du visualiseur (moins le pixel de
+  // retrait). 3x sur un ecran ordinaire, 7x (448 px CSS) a densite 2.
+  pico8Size() {
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    const facteur = Math.max(1, Math.floor(((VIS_WIDTH - 1) * dpr) / 128));
+    return (128 * facteur) / dpr;
+  }
+
   showPico8Screen() {
     return this.isPico8() && this.state.pico8Screen;
   }
@@ -212,17 +221,18 @@ export default class Visualizer extends PureComponent {
           </div>
         )}
 
-        {/* Ecran de la cartouche PICO-8 */}
-        <canvas className='Visualizer-pico8'
-                width={128} height={128}
-                ref={this.pico8CanvasRef}
-                style={{
-                  display: pico8Screen ? 'block' : 'none',
-                  width: VIS_WIDTH,
-                  height: VIS_WIDTH,
-                  imageRendering: 'pixelated',
-                  background: '#000',
-                }}/>
+        {/* Ecran de la cartouche PICO-8.
+            La zone prend exactement la place du spectrogramme (meme largeur,
+            meme hauteur, meme retrait d'un pixel pour ne pas couvrir la
+            bordure du panneau). L'image y est agrandie d'un facteur ENTIER en
+            pixels physiques : a 3,5x, les pixels PICO-8 faisaient tantot 3,
+            tantot 4 points, et les formes en devenaient irregulieres. */}
+        <div className='Visualizer-pico8'
+             style={{ display: pico8Screen ? 'flex' : 'none', width: VIS_WIDTH }}>
+          <canvas width={128} height={128}
+                  ref={this.pico8CanvasRef}
+                  style={{ width: this.pico8Size(), height: this.pico8Size() }}/>
+        </div>
 
         {!isMidi && !pico8Screen && (
           <div className='Visualizer-options' style={{ width: VIS_WIDTH, boxSizing: 'border-box' }}>
