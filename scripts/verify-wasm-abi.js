@@ -61,6 +61,12 @@ const MOTEURS = [
     correctif: 'reconstruire avec scripts/emscripten/fake08/ en completant EXPORTED_FUNCTIONS',
   },
   {
+    nom: 'tic80',
+    colle: 'src/tic80.js',
+    fichiers: ['src/players/Tic80Player.js'],
+    correctif: 'reconstruire avec scripts/emscripten/tic80/ en completant EXPORTED_FUNCTIONS',
+  },
+  {
     nom: 'chip-core',
     colle: 'src/chip-core.js',
     defaut: true,

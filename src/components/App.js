@@ -36,6 +36,7 @@ import GMEPlayer from '../players/GMEPlayer';
 import KSSPlayer from '../players/KSSPlayer';
 import PSFPlayer from '../players/PSFPlayer';
 import Pico8Player from '../players/Pico8Player';
+import Tic80Player from '../players/Tic80Player';
 import MIDIPlayer from '../players/MIDIPlayer';
 import V2MPlayer from '../players/V2MPlayer';
 import XMPPlayer from '../players/XMPPlayer';
@@ -227,6 +228,8 @@ class App extends React.Component {
       // Cartouches PICO-8 (.p8, .p8.png) : un programme a executer, pas un
       // flux. Personne d'autre ne revendique ces extensions.
       Pico8Player,
+      // Cartouches TIC-80 (.tic), sur le meme principe.
+      Tic80Player,
       MDXPlayer,
       VGMPlayer,
       SIDPlayer,

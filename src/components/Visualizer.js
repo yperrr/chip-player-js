@@ -75,13 +75,22 @@ export default class Visualizer extends PureComponent {
     }
   }
 
-  // Une cartouche PICO-8 est-elle chargee ? Le lecteur PICO-8 seul a un ecran.
+  // Une cartouche de console imaginaire (PICO-8, TIC-80) est-elle chargee ?
+  // Ces lecteurs seuls ont un ecran (hasScreen).
   isPico8() {
     // Le morceau courant, et non le dernier moteur servi : getPlayer() garde
-    // le lecteur PICO-8 apres qu'on est passe a autre chose.
+    // le lecteur de cartouches apres qu'on est passe a autre chose.
     const player = this.props.sequencer?.getPlayer();
-    return !!(player && player.playerKey === 'pico8'
-      && /\.p8(\.png)?$/i.test(this.props.songPath || ''));
+    if (!player || !player.hasScreen) return false;
+    const chemin = (this.props.songPath || '').toLowerCase();
+    return (player.fileExtensions || []).some(ext => chemin.endsWith('.' + ext));
+  }
+
+  // Taille de l'ecran du lecteur courant : 128 x 128 pour PICO-8, 256 x 144
+  // (bordure comprise) pour TIC-80.
+  screenSize() {
+    const player = this.props.sequencer?.getPlayer();
+    return { w: player?.screenWidth || 128, h: player?.screenHeight || 128 };
   }
 
   // Un module tracker est-il charge ? Seul le lecteur libopenmpt sait en
@@ -114,12 +123,16 @@ export default class Visualizer extends PureComponent {
     const canvas = this.pico8CanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const image = ctx.createImageData(128, 128);
+    let image = null;
     const draw = () => {
       this.pico8Frame = null;
       if (!this.showPico8Screen() || !this.props.visible) return;
       const pixels = this.props.sequencer?.getPlayer()?.getScreen?.();
-      if (pixels) {
+      const { w, h } = this.screenSize();
+      if (pixels && pixels.length === w * h * 4) {
+        // Le canevas suit la taille de l'ecran du lecteur courant.
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        if (!image || image.width !== w || image.height !== h) image = ctx.createImageData(w, h);
         image.data.set(pixels);
         ctx.putImageData(image, 0, 0);
       }
@@ -204,6 +217,7 @@ export default class Visualizer extends PureComponent {
     const isMidi = this.isCurrentSongMidi();
     const isPico8 = this.isPico8();
     const pico8Screen = isPico8;
+    const ecran = this.screenSize();
     const isTracker = this.isTracker() && !isMidi && !isPico8;
     const trackerOn = isTracker && this.state.tracker;
 
@@ -215,12 +229,14 @@ export default class Visualizer extends PureComponent {
 
     return (
       <div className='Visualizer' style={{ display: this.props.visible ? 'flex' : 'none' }}>
-        {/* Ecran de la cartouche PICO-8, a la place du spectrogramme : cale en
-            bas du panneau, sur toute sa largeur (moins le pixel de retrait qui
-            laisse voir la bordure), et carre — 128 x 128 etire a 448 x 448. */}
+        {/* Ecran de la cartouche (PICO-8, TIC-80), a la place du spectrogramme :
+            cale en bas du panneau, sur toute sa largeur (moins le pixel de
+            retrait qui laisse voir la bordure), aux proportions de la console —
+            128 x 128 etire a 448 x 448, 256 x 144 a 448 x 252. */}
         <div className='Visualizer-pico8'
              style={{ display: pico8Screen ? 'flex' : 'none', width: VIS_WIDTH }}>
-          <canvas width={128} height={128} ref={this.pico8CanvasRef}/>
+          <canvas width={ecran.w} height={ecran.h} ref={this.pico8CanvasRef}
+                  style={{ aspectRatio: `${ecran.w} / ${ecran.h}` }}/>
         </div>
 
         {!isMidi && !pico8Screen && (

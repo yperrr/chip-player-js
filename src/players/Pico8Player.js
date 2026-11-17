@@ -37,8 +37,8 @@ const SECONDES_RECHERCHE_MAX = 900;
  * L'ECRAN
  *
  * Le programme tourne meme quand on ne le regarde pas : c'est lui qui joue la
- * musique. getScreen() rend l'image courante ; le visualiseur l'affiche quand
- * l'option « PICO-8 screen » est active (voir components/Visualizer.js). Sans
+ * musique. getScreen() rend l'image courante ; le visualiseur l'affiche a la
+ * place du spectrogramme (voir components/Visualizer.js). Sans
  * manette, une cartouche de jeu reste sur son ecran-titre — ce qui convient a
  * un lecteur : on y entend la musique du titre.
  */

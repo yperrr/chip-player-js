@@ -1,0 +1,26 @@
+{
+  "bibliotheque": "TIC-80 (console imaginaire de nesbox), coeur seul",
+  "licence": "TIC-80 : MIT. Lua, MoonScript, Fennel, QuickJS, Wren, Squirrel, pocketpy : MIT. s7 (Scheme) : 0BSD.",
+  "sources": {
+    "tic-80": "https://github.com/nesbox/TIC-80 @ v1.4.1 (b3dbd597eecfe6742f64001c2fe5ba6c1afe55d9), sous-modules a leurs commits epingles"
+  },
+  "construction": {
+    "recette": "scripts/emscripten/tic80/Dockerfile",
+    "image": "emscripten/emsdk:6.0.0",
+    "note": "Cible CMake tic80core seule (BUILD_STATIC, sans studio, SDL ni Sokol). Langages : Lua, MoonScript, Fennel, JavaScript, Wren, Squirrel, Scheme, Python. Ecartes : Ruby (rake), Janet (amorcage natif), wasm, MiniScript, Forth, Gravity, YueScript."
+  },
+  "shim": {
+    "fichier": "scripts/emscripten/tic80/shim.c",
+    "note": "t8_create/t8_load/t8_tick/t8_samples/t8_screen : un tic80_tick() puis tic80_sound() par image a 60 Hz, a la cadence du contexte audio ; horloge virtuelle d'une image par tick."
+  },
+  "colle": {
+    "fichier": "src/tic80.js",
+    "octets": 66871,
+    "sha256": "ece3981e38a447b0e7d06897c7bd693d7c7468f2dc0b39643feb3b1e83b11281"
+  },
+  "wasm": {
+    "fichier": "src/tic80.wasm",
+    "octets": 3498558,
+    "sha256": "3761e25909af227c88f980175509513ea09de6c3fe33fe694c04ef2a241589c2"
+  }
+}

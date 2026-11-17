@@ -563,7 +563,7 @@ button.IconButton {
     flex-direction: column; justify-content: flex-end;
 }
 .Visualizer-pico8 canvas {
-    display: block; flex-shrink: 0; width: 100%; height: auto; aspect-ratio: 1 / 1;
+    display: block; flex-shrink: 0; width: 100%; height: auto; /* proportions : style en ligne */
     image-rendering: pixelated;
 }
 .Visualizer-tracker {

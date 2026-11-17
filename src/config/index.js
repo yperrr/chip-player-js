@@ -29,6 +29,8 @@ const FORMATS = [
   // src/players/Pico8Player.js (FAKE-08). Voir extensionOf() pour la seconde.
   'p8',
   'p8.png',
+  // TIC-80 : cartouches .tic, jouees par src/players/Tic80Player.js.
+  'tic',
   // Decodes par le navigateur, via NativeAudioPlayer.
   'aa3',
   'aac',
