@@ -703,6 +703,13 @@ button.IconButton {
 
 .tab-settings { margin-left: auto; margin-right: 0; }
 
+/* Telephone : les six onglets tiennent sur la largeur au lieu de deborder
+   (Settings etait coupe) ; on resserre leur marge interieure. */
+@media screen and (max-width: 600px) {
+    [data-theme] .tab { padding: 0 var(--charW1); }
+    .tab-container { gap: 2px; }
+}
+
 .toast-box-outer {
     position: absolute;
     z-index: 100;

@@ -109,6 +109,7 @@
     .Search-clearButton::before { content: 'Clear'; }
 
     .tab { padding: 0 15px; }
+    @media screen and (max-width: 600px) { .tab { padding: 0 6px; } }
 
     button[disabled] { background-color: var(--button); color: var(--buttonShadow); }
     .inline-icon.icon-copy { width: 18px; background-color: var(--neutral2); }

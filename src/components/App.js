@@ -132,7 +132,19 @@ class App extends React.Component {
     console.log('Sample rate: %d hz. Base latency: %d. Buffer size: %d.',
       audioCtx.sampleRate, audioCtx.baseLatency * audioCtx.sampleRate, bufferSize);
 
+    // Le visualiseur suit la LARGEUR de la fenetre, reevaluee en direct, et non
+    // le User-Agent fige au chargement : un pliable ouvert plie puis deplie
+    // doit le retrouver. Meme seuil que l'interrupteur de l'en-tete, cache
+    // sous 600 px (index.css).
+    this.ecranLargeMq = window.matchMedia ? window.matchMedia('(min-width: 601px)') : null;
+    const suivreLargeur = () => this.setState({ ecranLarge: !this.ecranLargeMq || this.ecranLargeMq.matches });
+    if (this.ecranLargeMq) {
+      if (this.ecranLargeMq.addEventListener) this.ecranLargeMq.addEventListener('change', suivreLargeur);
+      else this.ecranLargeMq.addListener(suivreLargeur);
+    }
+
     this.state = {
+      ecranLarge: !this.ecranLargeMq || this.ecranLargeMq.matches,
       loading: true,
       loadingLocalFiles: true,
       paused: true,
@@ -998,12 +1010,14 @@ class App extends React.Component {
     const search = { search: window.location.search };
     const { settings } = this.props.userContext;
     const showPlayerSettings = settings?.showPlayerSettings;
-    const showVisualizer = settings?.showVisualizer;
     const midiData = (
       (this.state.songPath && /\.(mid|midi|smf)$/i.test(this.state.songPath)) ||
       this.sequencer?.getPlayer()?.fileExtensions?.includes('mid')
     ) ? (this.state.currentSongBuffer || this.sequencer?.getCurrSongBuffer()) : null;
     const isMidi = Boolean(midiData);
+    // Sous 600 px, pas de place pour le visualiseur : il reste monte mais cache
+    // et en pause, et revient si la fenetre s'elargit.
+    const showVisualizer = Boolean(settings?.showVisualizer) && this.state.ecranLarge;
     const activeTheaterMode = Boolean(isMidi && this.state.theaterMode && showVisualizer);
 
     return (
@@ -1129,7 +1143,7 @@ class App extends React.Component {
                 }
               </div>
             </div>
-            {!isMobile.phone && !this.state.loading && !!this.chipCore &&
+            {!this.state.loading && !!this.chipCore &&
               <Visualizer audioCtx={this.audioCtx}
                           sourceNode={this.vizNode}
                           bufferSize={this.bufferSize}
