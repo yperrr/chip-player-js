@@ -23,6 +23,11 @@ const DUREE_DEFAUT_MS = 180000;
 const MS_RATTRAPAGE_PAR_APPEL = 20;
 const SECONDES_RECHERCHE_MAX = 900;
 
+// Part du temps d'un tampon audio qu'on s'autorise a passer dans le
+// programme (le rendu tourne sur le fil principal). Une cartouche plus lourde
+// que le temps reel ralentit, completee de silence, au lieu de geler la page.
+const BUDGET_TAMPON = 0.6;
+
 /**
  * Lecteur de cartouches PICO-8, par FAKE-08 (MIT) compile en WebAssembly.
  *
@@ -175,11 +180,13 @@ export default class Pico8Player extends Player {
 
     const attendus = channels[0].length;
     const pas = TAUX_PICO8 / this.sampleRate;
+    const limite = performance.now() + BUDGET_TAMPON * 1000 * attendus / this.sampleRate;
     let ecrits = 0;
     let fini = false;
 
     while (ecrits < attendus) {
       if (this._pos >= this._reste - 1) {
+        if (ecrits > 0 && performance.now() > limite) break;
         if (this._reste > 0) {
           if (!this._prec) this._prec = new Float32Array(2);
           this._prec[0] = this._lire(this._reste - 1, 0);
