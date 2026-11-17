@@ -549,7 +549,8 @@ button.IconButton {
 .Visualizer {
     position: relative; display: flex; flex-direction: column; align-items: flex-end;
 }
-.Visualizer-overlay { position: absolute; top: calc(4 * var(--charH)); }
+.Visualizer-analyzer-zone { position: relative; flex-shrink: 0; }
+.Visualizer-overlay { position: absolute; top: 0; right: 0; }
 .Visualizer-options { padding: var(--charH) var(--charW2) 0; text-align: right; }
 .Visualizer-toggle { position: fixed; top: 0; right: var(--charW2); }
 @media screen and (max-width: 600px) { .Visualizer-toggle { display: none; } }

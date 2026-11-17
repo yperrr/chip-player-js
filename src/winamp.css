@@ -167,9 +167,8 @@
         background-image: linear-gradient(0deg, #0008, #0003 60%);
         border-bottom: var(--grooveBorder);
 
-        & > div { display: flex; align-items: center; height: var(--formFieldHeight); }
+        & > div { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--formFieldHeight); }
     }
-    .Visualizer-overlay { top: 92px; }
     .App-main.theater-mode .Visualizer {
         top: 22px;
     }

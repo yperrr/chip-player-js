@@ -333,18 +333,22 @@ export default class Visualizer extends PureComponent {
         )}
 
         {/* Spectrogram visualizer */}
-        <canvas style={specStyle} className='Visualizer-analyzer' width={VIS_WIDTH} height={60}
-                ref={this.freqCanvasRef}/>
+        {/* Le clavier se pose sur l'analyseur lui-meme, et non a une hauteur
+            fixe : la ligne Mode passe sur deux lignes quand Tracker s'y ajoute. */}
+        <div className='Visualizer-analyzer-zone'>
+          <canvas style={specStyle} className='Visualizer-analyzer' width={VIS_WIDTH} height={60}
+                  ref={this.freqCanvasRef}/>
+          <img src={pianoKeys}
+               className='Visualizer-overlay'
+               ref={this.pianoKeysRef}
+               alt='Piano keys'
+               style={{
+                 display: (!isMidi && !pico8Screen && !trackerOn && this.state.vizMode === 2) ? 'block' : 'none',
+                 width: VIS_WIDTH,
+               }}/>
+        </div>
         <canvas style={specStyle} className='Visualizer-spectrogram' width={VIS_WIDTH} height={800}
                 ref={this.specCanvasRef}/>
-        <img src={pianoKeys}
-             className='Visualizer-overlay'
-             ref={this.pianoKeysRef}
-             alt='Piano keys'
-             style={{
-               display: (!isMidi && !pico8Screen && !trackerOn && this.state.vizMode === 2) ? 'block' : 'none',
-               width: VIS_WIDTH,
-             }}/>
       </div>
     );
   }
