@@ -2,6 +2,8 @@ import Player from './Player.js';
 import autoBind from 'auto-bind';
 import EXTENSIONS_VGMSTREAM from '../vgmstream-extensions.json';
 import EXTENSIONS_HORS_LISTE from '../vgmstream-extensions-hors-liste';
+import { API_BASE, CATALOG_PREFIX } from '../config';
+import { pathJoin } from '../util';
 
 // La liste vient de la bibliotheque elle-meme : elle est relevee a la
 // construction du wasm par scripts/emscripten/vgmstream/, en appelant
@@ -44,6 +46,105 @@ const CONTINUITE_MIN = 0.5;
 
 const SFMT_PCM16 = 1;
 const SFMT_FLOAT = 4;
+
+// FICHIERS VOISINS
+//
+// Un .txtp ne contient pas de son : c'est une recette de vgmstream qui renvoie
+// a d'autres fichiers du dossier (« MVB/ALPINE.MVB#2 », « wem/123.wem #i »),
+// avec des sous-pistes, des couches, des boucles. Un .txth decrit de meme le
+// flux brut qui porte son nom. Le catalogue en compte pres d'un millier
+// (Xenoblade, Terraria, Sonic Mania, Gitaroo Man...), restes muets tant que
+// seul le fichier joue arrivait au moteur.
+//
+// vgmstream ouvre ces voisins par chemin, de facon synchrone : on les tire
+// donc du catalogue AVANT d'ouvrir, et on les depose sous RACINE_VOISINS en
+// reproduisant l'arborescence du catalogue, pour que les chemins relatifs
+// tombent juste. Ils restent en place tant que les morceaux suivants s'en
+// servent : les trois versions d'un circuit de Porsche Challenge partagent un
+// .MVB de 95 Mo, qu'il serait absurde de retelecharger a chaque morceau.
+const RACINE_VOISINS = '/voisins';
+const PROFONDEUR_TXTP_MAX = 4;
+
+// DESCRIPTIONS DE FORMATS « RESERVES AU TXTH »
+//
+// vgmstream reserve certaines extensions a des flux sans en-tete qu'il ne lit
+// qu'accompagnes d'un .txth. Quand le rip ne l'a pas fourni, on le fournit.
+//
+// mvb — Porsche Challenge (PS1). Releve sur les quatre circuits :
+//   - De l'ADPCM PlayStation sans en-tete, en blocs de 0x800 octets qui
+//     bouclent chacun sur eux-memes (drapeaux 6 puis 3) : la technique de
+//     flux du SPU, un bloc par secteur de CD.
+//   - Dix voies entrelacees bloc a bloc, soit cinq paires stereo. Les paires
+//     inutilisees sont des COPIES de la voie 0 : USA en remplit quatre,
+//     ALPINE et JAP trois, STUT deux, et la cinquieme ne l'est jamais. D'ou
+//     quatre sous-pistes, la base (#1) et ses variantes, que les .txtp du
+//     rip superposent deux a deux.
+//   - 22 695 Hz : sur les voies tonales, les pics du spectre tombent a 4
+//     cents de la gamme temperee a cette cadence, contre 46 a 22 050 Hz.
+//     C'est aussi la cadence du .txth livre pour MENU_SND.VB, du meme jeu.
+//   La disposition est celle de l'exemple « Street Fighter EX3 » de la
+//   documentation TXTH : les morceaux de 0x1000 octets se « dechunkent » par
+//   sous-piste avant d'etre lus.
+const TXTH_INTEGRES = {
+  mvb: [
+    'codec = PSX',
+    'sample_rate = 22695',
+    'channels = 2',
+    'interleave = 0x800',
+    'subsong_count = 4',
+    'chunk_start = 0',
+    'chunk_size = 0x1000',
+    'chunk_count = 5',
+    'start_offset = 0',
+    'num_samples = data_size',
+    '',
+  ].join('\n'),
+};
+
+function extensionDe(nom) {
+  const m = /\.([^./]+)$/.exec(nom || '');
+  return m ? m[1].toLowerCase() : '';
+}
+
+// Chemin du catalogue -> URL, segment par segment : un « # » ou un « ? »
+// dans un nom de fichier ne doit pas devenir une ancre ou une requete.
+function urlDuCatalogue(chemin) {
+  return pathJoin(CATALOG_PREFIX, chemin.split('/').filter(Boolean).map(encodeURIComponent).join('/'));
+}
+
+// Resout « a/./b/../c » ; rend null si le chemin sort du catalogue.
+function normaliser(chemin) {
+  const pile = [];
+  for (const seg of chemin.split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') {
+      if (!pile.length) return null;
+      pile.pop();
+    } else {
+      pile.push(seg);
+    }
+  }
+  return pile.join('/');
+}
+
+/**
+ * Les fichiers qu'un .txtp nomme, tels qu'ecrits (separateurs normalises).
+ *
+ * Une ligne est soit vide, soit un commentaire (« # ... »), soit un reglage
+ * (« mode = layers »), soit un fichier suivi de ses commandes : « x.wem#2 »,
+ * « x.wem #i #b 12.0 ». Le nom s'arrete donc au premier « # ».
+ */
+function fichiersDuTxtp(texte) {
+  const noms = [];
+  for (const brute of texte.split(/\r?\n/)) {
+    const ligne = brute.trim();
+    if (!ligne || ligne.startsWith('#')) continue;
+    if (/^[a-z_]+\s*=/i.test(ligne)) continue;
+    const nom = ligne.split('#')[0].trim().replace(/\\/g, '/');
+    if (nom && !noms.includes(nom)) noms.push(nom);
+  }
+  return noms;
+}
 
 // Decalages des structures de src/libvgmstream.h, pour wasm32 : pointeurs sur
 // 4 octets, int64 et double alignes sur 8.
@@ -91,6 +192,8 @@ export default class VGMStreamPlayer extends Player {
     this._nbSubtunes = 1;
     this._dureeMs = 0;
     this.infoTexts = [];
+    this._voisins = new Set();  // chemins deposes sous RACINE_VOISINS
+    this._jeton = 0;            // numero du dernier chargement demande
   }
 
   async _assurerLeCoeur() {
@@ -146,34 +249,33 @@ export default class VGMStreamPlayer extends Player {
     this._donnees = data;
     this._nomFichier = filename;
     this._nettoyer();
+    // Le telechargement des voisins peut durer : si un autre morceau est
+    // demande entre-temps, celui-ci renonce sans rien signaler.
+    const jeton = ++this._jeton;
 
     // vgmstream lit par un « streamfile » et reconnait beaucoup de formats a
     // l'extension : on ecrit donc le fichier dans le systeme de fichiers
     // d'emscripten sous son vrai nom, et on le lui ouvre par chemin. Cela evite
     // d'exposer des pointeurs de fonction au JavaScript pour l'interface d'E/S.
     const nom = filename.split('/').pop();
-    this.cheminFs = '/tmp/' + nom;
-    try { this.core.FS.mkdir('/tmp'); } catch (e) { /* existe deja */ }
-    this.core.FS.writeFile(this.cheminFs, data);
-
-    const cheminPtr = this.core._malloc(this.cheminFs.length + 1);
-    this.core.stringToUTF8(this.cheminFs, cheminPtr, this.cheminFs.length + 1);
-    const libsf = this.core._libstreamfile_open_from_stdio(cheminPtr);
-    this.core._free(cheminPtr);
-    if (!libsf) {
-      this._nettoyer();
-      throw Error('vgmstream: streamfile non ouvert');
-    }
-
-    // Aucune configuration passee : les valeurs par defaut conviennent (une
-    // boucle, fondu standard), et surtout cela evite de dependre des decalages
-    // de libvgmstream_config_t, que rien ne verifierait. On lit le format de
-    // sortie plutot que de l'imposer.
-    this.lib = this.core._libvgmstream_create(libsf, this._subtune + 1, 0);
-    this.core._libstreamfile_close(libsf);
-
-    if (!this.lib) {
-      this.lib = this._tenterAtrac3Nu(nom) || this._tenterCdDaNu(nom, data);
+    const ext = extensionDe(nom);
+    if (ext === 'txtp' || ext === 'txth') {
+      const chemin = await this._deposerVoisins(data, filename, ext, jeton);
+      if (jeton !== this._jeton) return;
+      this.lib = this._ouvrir(chemin);
+      if (!this.lib) {
+        this._nettoyer();
+        throw Error(ext === 'txtp' ? 'vgmstream: recette .txtp non lue' : 'vgmstream: description .txth non lue');
+      }
+    } else {
+      this._garderVoisins(new Set());
+      this.cheminFs = '/tmp/' + nom;
+      try { this.core.FS.mkdir('/tmp'); } catch (e) { /* existe deja */ }
+      this.core.FS.writeFile(this.cheminFs, data);
+      this.lib = this._ouvrir(this.cheminFs)
+        || this._tenterTxthIntegre(ext)
+        || this._tenterAtrac3Nu(nom)
+        || this._tenterCdDaNu(nom, data);
     }
 
     if (!this.lib) {
@@ -188,9 +290,172 @@ export default class VGMStreamPlayer extends Player {
     }
 
     this._lireMetadonnees(fmt);
+    // Le flux d'un .txtp porte le nom du fichier qu'il lit : les trois
+    // versions d'un circuit s'intituleraient toutes « ALPINE ». Le nom de la
+    // recette est le seul qui les distingue.
+    if (ext === 'txtp') this.metadata.title = this.filepathMeta.title;
     this.resolveParamValues(persistedSettings);
     this.resume();
     this.emit('playerStateUpdate', { ...this.getBasePlayerState(), isStopped: false });
+  }
+
+  /**
+   * Ouvre un fichier deja depose, ou rend 0.
+   *
+   * Aucune configuration passee : les valeurs par defaut conviennent (une
+   * boucle, fondu standard), et surtout cela evite de dependre des decalages
+   * de libvgmstream_config_t, que rien ne verifierait. On lit le format de
+   * sortie plutot que de l'imposer.
+   */
+  _ouvrir(chemin) {
+    const c = this.core;
+    // En octets UTF-8, pas en caracteres : un nom accentue serait tronque.
+    const n = c.lengthBytesUTF8(chemin) + 1;
+    const ptr = c._malloc(n);
+    c.stringToUTF8(chemin, ptr, n);
+    const sf = c._libstreamfile_open_from_stdio(ptr);
+    c._free(ptr);
+    if (!sf) return 0;
+    const lib = c._libvgmstream_create(sf, this._subtune + 1, 0);
+    c._libstreamfile_close(sf);
+    return lib;
+  }
+
+  /** Un format reserve au txth, livre sans le sien : voir TXTH_INTEGRES. */
+  _tenterTxthIntegre(ext) {
+    const txth = TXTH_INTEGRES[ext];
+    if (!txth) return 0;
+    this.cheminTxth = this.cheminFs + '.txth';
+    try {
+      this.core.FS.writeFile(this.cheminTxth, new TextEncoder().encode(txth));
+    } catch (e) {
+      this.cheminTxth = null;
+      return 0;
+    }
+    return this._ouvrir(this.cheminFs);
+  }
+
+  /**
+   * Depose un .txtp ou un .txth et les fichiers auxquels il renvoie, et rend
+   * le chemin a ouvrir. Voir RACINE_VOISINS.
+   *
+   *   .txtp  On l'ouvre lui-meme ; ses fichiers, et les .txtp qu'il inclut,
+   *          sont tires du catalogue.
+   *   .txth  « X.VB.TXTH » decrit « X.VB » : on ouvre le corps, et vgmstream
+   *          trouve sa description en ajoutant « .txth » a son nom — en
+   *          minuscules, le systeme de fichiers d'emscripten distinguant la
+   *          casse. Un « TXTH inverse » (body_file) s'ouvre, lui, tel quel.
+   */
+  async _deposerVoisins(data, filename, ext, jeton) {
+    if (/^local\//.test(filename)) {
+      throw Error('vgmstream: un fichier local ne donne pas acces a ses voisins');
+    }
+    const chemin = normaliser(filename);
+    const dossierDe = p => p.split('/').slice(0, -1).join('/');
+    const resoudre = (base, nom) => {
+      const cible = normaliser(dossierDe(base) + '/' + nom.replace(/\\/g, '/'));
+      if (!cible) throw Error(`vgmstream: « ${nom} » sort du catalogue`);
+      return cible;
+    };
+    // chemin du catalogue -> octets, ou null tant qu'ils restent a tirer
+    const requis = new Map([[chemin, data]]);
+    let aOuvrir = chemin;
+
+    if (ext === 'txtp') {
+      const aLire = [[chemin, data, 0]];
+      while (aLire.length) {
+        const [p, octets, profondeur] = aLire.shift();
+        for (const nom of fichiersDuTxtp(new TextDecoder().decode(octets))) {
+          const cible = resoudre(p, nom);
+          if (requis.has(cible)) continue;
+          requis.set(cible, null);
+          if (extensionDe(cible) === 'txtp') {
+            if (profondeur >= PROFONDEUR_TXTP_MAX) throw Error('vgmstream: .txtp imbriques trop profondement');
+            const inclus = await this._telecharger(cible);
+            if (jeton !== this._jeton) return null;
+            requis.set(cible, inclus);
+            aLire.push([cible, inclus, profondeur + 1]);
+          }
+        }
+      }
+    } else {
+      const corps = /^[ \t]*body_file[ \t]*=[ \t]*([^#\r\n]+)/m.exec(new TextDecoder().decode(data));
+      if (corps && !corps[1].trim().startsWith('*')) {
+        requis.set(resoudre(chemin, corps[1].trim()), null);
+      } else {
+        aOuvrir = chemin.replace(/\.txth$/i, '');
+        requis.delete(chemin);
+        requis.set(aOuvrir, null);
+        requis.set(aOuvrir + '.txth', data);
+      }
+    }
+
+    // Les formats reserves au txth recoivent le leur, faute de mieux.
+    for (const p of [...requis.keys()]) {
+      const txth = TXTH_INTEGRES[extensionDe(p)];
+      if (txth && !requis.has(p + '.txth')) requis.set(p + '.txth', new TextEncoder().encode(txth));
+    }
+
+    // On libere d'abord ce qui ne sert plus : deux .MVB de 95 Mo en memoire
+    // a la fois, ce serait un de trop.
+    const versFs = p => RACINE_VOISINS + '/' + p;
+    this._garderVoisins(new Set([...requis.keys()].map(versFs)));
+
+    const c = this.core;
+    for (const [p, octets] of requis) {
+      const fs = versFs(p);
+      // Deja la depuis le morceau precedent : un voisin ne change pas d'un
+      // morceau a l'autre. Les octets connus, eux, sont toujours reecrits.
+      if (!octets && this._voisins.has(fs) && c.FS.analyzePath(fs).exists) continue;
+      const contenu = octets || await this._telecharger(p);
+      if (jeton !== this._jeton) return null;
+      c.FS.mkdirTree(dossierDe(fs));
+      c.FS.writeFile(fs, contenu);
+      this._voisins.add(fs);
+    }
+    return versFs(aOuvrir);
+  }
+
+  async _telecharger(chemin) {
+    let r = await fetch(urlDuCatalogue(chemin));
+    if (r.status === 404) {
+      const reel = await this._casseReelle(chemin);
+      if (reel) r = await fetch(urlDuCatalogue(reel));
+    }
+    if (!r.ok) throw Error(`vgmstream: fichier voisin « ${chemin.split('/').pop()} » introuvable (${r.status})`);
+    return new Uint8Array(await r.arrayBuffer());
+  }
+
+  /**
+   * Le vrai nom d'un fichier mal capitalise, ou null.
+   *
+   * Les recettes s'ecrivent sous Windows, qui ignore la casse ; le serveur,
+   * lui, la respecte. Releve sur Sonic Generations : dix-huit .txtp nomment
+   * « PAM\BB069_PAM17I_wav.aax », le fichier s'appelle « ...PAM17i... ». On
+   * cherche donc le nom dans la liste du dossier, sans tenir compte de la
+   * casse. Le dossier lui-meme doit etre juste.
+   */
+  async _casseReelle(chemin) {
+    const segments = chemin.split('/');
+    const dossier = segments.slice(0, -1).map(encodeURIComponent).join('/');
+    try {
+      const r = await fetch(`${API_BASE}/browse?path=/${dossier}`);
+      if (!r.ok) return null;
+      const cherche = chemin.toLowerCase();
+      const trouve = (await r.json()).find(e => e.type === 'file' && String(e.path).toLowerCase() === cherche);
+      return trouve ? trouve.path : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** Efface les voisins deposes qui ne figurent pas dans « garder ». */
+  _garderVoisins(garder) {
+    for (const fs of this._voisins) {
+      if (garder.has(fs)) continue;
+      try { this.core.FS.unlink(fs); } catch (e) { /* deja parti */ }
+      this._voisins.delete(fs);
+    }
   }
 
   /**
@@ -605,6 +870,7 @@ export default class VGMStreamPlayer extends Player {
   stop() {
     this.suspend();
     this._nettoyer();
+    this._garderVoisins(new Set());
     this._subtune = 0;
     this.emit('playerStateUpdate', { isStopped: true });
   }

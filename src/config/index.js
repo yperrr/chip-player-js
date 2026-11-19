@@ -190,8 +190,9 @@ const FORMATS = [
   //     bnk       Banque Wwise : 2 fichiers, 2 jeux, « format non reconnu ».
   //               Le conteneur renvoie aux .wem voisins, qui eux se lisent.
   //     sem       Table d'evenements de Smash Melee : ce n'est pas de l'audio.
-  //     txtp      Fichier de configuration vgmstream, qui renvoie a des
-  //               fichiers voisins : inapplicable ici.
+  //
+  //   « txtp » et « txth » renvoient a des fichiers voisins : le lecteur les
+  //   tire du catalogue avant d'ouvrir (VGMStreamPlayer._deposerVoisins).
   //
   //   DECLAREES SANS FICHIER SOUS LA MAIN, leur codec etant desormais present :
   //     lac3 laac lflac lmp3 lmp4 lopus xwma
@@ -718,6 +719,7 @@ const FORMATS = [
   'tsdse4',
   'tun',
   'txth',
+  'txtp',
   'ue4opus',
   'ueba',
   'ueopus',
